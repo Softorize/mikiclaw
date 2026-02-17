@@ -13,7 +13,7 @@ interface ClawHubSkill {
 
 class SkillsRegistry {
   private getSkillsDir(): string {
-    const homeDir = require("os").homedir();
+    const homeDir = require("node:os").homedir();
     return join(homeDir, ".mikiclaw", "skills");
   }
 
@@ -72,7 +72,7 @@ class SkillsRegistry {
         return;
       }
 
-      const skillData = await response.json();
+      const skillData = await response.json() as any;
       
       const skillPath = join(skillsDir, skillName);
       if (!existsSync(skillPath)) {
@@ -116,7 +116,7 @@ class SkillsRegistry {
         return;
       }
 
-      const results: ClawHubSkill[] = await response.json();
+      const results = await response.json() as ClawHubSkill[];
       
       spinner.stop();
 

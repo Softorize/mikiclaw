@@ -1,7 +1,7 @@
 import inquirer from "inquirer";
 import ora from "ora";
 import { configManager } from "../config/manager.js";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 export async function setupWizard() {
@@ -54,6 +54,29 @@ export async function setupWizard() {
       name: "heartbeat",
       message: "Enable heartbeat (periodic check-ins)?",
       default: true
+    },
+    {
+      type: "list",
+      name: "toolPolicy",
+      message: "Tool execution policy:",
+      choices: [
+        { name: "Block destructive commands (recommended)", value: "block-destructive" },
+        { name: "Allow all commands (not recommended)", value: "allow-all" },
+        { name: "Allowlist only - specify allowed commands", value: "allowlist-only" }
+      ],
+      default: "block-destructive"
+    },
+    {
+      type: "confirm",
+      name: "encryptCredentials",
+      message: "Encrypt stored credentials (recommended)?",
+      default: true
+    },
+    {
+      type: "confirm",
+      name: "rateLimit",
+      message: "Enable rate limiting (20 requests/minute)?",
+      default: true
     }
   ]);
 
@@ -88,6 +111,16 @@ export async function setupWizard() {
     },
     workspace: {
       path: configManager.getWorkspacePath()
+    },
+    security: {
+      encryptCredentials: answers.encryptCredentials,
+      toolPolicy: answers.toolPolicy,
+      allowedCommands: answers.toolPolicy === "allowlist-only" ? ["git", "ls", "cat", "echo", "node", "npm"] : undefined,
+      blockedCommands: ["rm -rf /", "dd if=", ":(){:|:&};:", "curl | sh", "wget | sh", "mkfs", "fdisk", "dd", "> /dev/sda"]
+    },
+    rateLimit: {
+      enabled: answers.rateLimit,
+      maxRequestsPerMinute: 20
     }
   });
   spinner.succeed("Configuration saved!");
@@ -100,12 +133,21 @@ export async function setupWizard() {
 
   writeFileSync(join(workspacePath, "SOUL.md"), getSoulForPersonality(answers.personality));
   writeFileSync(join(workspacePath, "HEARTBEAT.md"), getHeartbeatTemplate());
+  
+  if (!existsSync(join(workspacePath, "MEMORY.md"))) {
+    writeFileSync(join(workspacePath, "MEMORY.md"), getMemoryTemplate());
+  }
   spinner.succeed("Workspace created!");
 
   console.log("\n✅ Setup complete!");
   console.log("\nNext steps:");
-  console.log("  1. Run 'mikiclaw start' to start your bot");
-  console.log("  2. Message your Telegram bot to get started\n");
+  console.log("  1. Run 'npm start' to start your bot");
+  console.log("  2. Message your Telegram bot to get started");
+  console.log("\n📝 Available commands in bot:");
+  console.log("  /start - Start the bot");
+  console.log("  /help - Show help");
+  console.log("  /status - Check system status");
+  console.log("  /skills - List skills\n");
 }
 
 function getSoulForPersonality(type: string): string {
@@ -214,5 +256,21 @@ function getHeartbeatTemplate(): string {
 - schedule: "0 8 * * *"
 - action: send_status
 - description: Send daily system status
+`;
+}
+
+function getMemoryTemplate(): string {
+  return `# Memory
+
+Long-term memory for the agent.
+Entries are automatically added based on conversations and tool usage.
+
+## How it works
+- Facts about you are stored here
+- Your preferences are remembered
+- Important context is preserved across sessions
+
+## To add memories
+The agent will automatically learn from your interactions.
 `;
 }

@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import JSON5 from "json5";
 import { z } from "zod";
+import { encrypt, decrypt, encryptConfig, decryptConfig } from "./encryption.js";
 
 const ConfigSchema = z.object({
   telegram: z.object({
@@ -22,6 +23,16 @@ const ConfigSchema = z.object({
   }).optional(),
   workspace: z.object({
     path: z.string().default("")
+  }).optional(),
+  security: z.object({
+    encryptCredentials: z.boolean().default(true),
+    toolPolicy: z.enum(["allow-all", "block-destructive", "allowlist-only"]).default("block-destructive"),
+    allowedCommands: z.array(z.string()).optional(),
+    blockedCommands: z.array(z.string()).default(() => ["rm -rf /", "dd if=", ":(){:|:&};:", "curl | sh", "wget | sh", "mkfs", "fdisk", "dd"])
+  }).optional(),
+  rateLimit: z.object({
+    enabled: z.boolean().default(true),
+    maxRequestsPerMinute: z.number().default(20)
   }).optional()
 });
 
@@ -52,7 +63,14 @@ class ConfigManager {
     if (existsSync(this.configPath)) {
       try {
         const raw = readFileSync(this.configPath, "utf-8");
-        this.config = ConfigSchema.parse(JSON5.parse(raw));
+        const parsed = JSON5.parse(raw);
+        
+        if (parsed.security?.encryptCredentials) {
+          const decrypted = decryptConfig(parsed as any);
+          this.config = ConfigSchema.parse(decrypted);
+        } else {
+          this.config = ConfigSchema.parse(parsed);
+        }
       } catch (e) {
         console.warn("Failed to load config, using defaults");
         this.config = this.getDefaults();
@@ -66,7 +84,13 @@ class ConfigManager {
 
   save(config: Config): void {
     this.config = config;
-    writeFileSync(this.configPath, JSON.stringify(config, null, 2));
+    
+    let toSave: any = { ...config };
+    if (config.security?.encryptCredentials) {
+      toSave = encryptConfig(toSave);
+    }
+    
+    writeFileSync(this.configPath, JSON.stringify(toSave, null, 2));
   }
 
   getDefaults(): Config {
@@ -89,6 +113,16 @@ class ConfigManager {
       },
       workspace: {
         path: join(homeDir, ".mikiclaw", "workspace")
+      },
+      security: {
+        encryptCredentials: true,
+        toolPolicy: "block-destructive",
+        allowedCommands: undefined,
+        blockedCommands: ["rm -rf /", "dd if=", ":(){:|:&};:", "curl | sh", "wget | sh", "mkfs", "fdisk", "dd"]
+      },
+      rateLimit: {
+        enabled: true,
+        maxRequestsPerMinute: 20
       }
     };
   }
@@ -113,6 +147,23 @@ class ConfigManager {
   update(updates: Partial<Config>): void {
     const current = this.load();
     this.save({ ...current, ...updates });
+  }
+
+  isCommandAllowed(command: string): boolean {
+    const config = this.load();
+    const policy = config.security?.toolPolicy || "block-destructive";
+    const blocked = config.security?.blockedCommands || [];
+    const allowed = config.security?.allowedCommands;
+
+    if (policy === "allowlist-only" && allowed) {
+      return allowed.some(cmd => command.includes(cmd));
+    }
+
+    if (policy === "block-destructive" || policy === "allow-all") {
+      return !blocked.some(cmd => command.includes(cmd));
+    }
+
+    return true;
   }
 }
 

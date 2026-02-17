@@ -8,7 +8,7 @@ export async function webSearch(query: string): Promise<string> {
       return "Search failed";
     }
 
-    const data = await response.json();
+    const data = await response.json() as any;
     
     if (!data.AbstractText) {
       return "No results found";

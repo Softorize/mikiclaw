@@ -1,4 +1,4 @@
-import { Context, Telegraf } from "telegraf";
+import { Context } from "telegraf";
 import { runAgent } from "../agent/runner.js";
 
 interface MessageContext {
@@ -38,8 +38,7 @@ export async function messageHandler(ctx: Context) {
     const response = await runAgent(mctx);
     
     await ctx.reply(response, {
-      parse_mode: "Markdown",
-      disable_web_page_preview: true
+      parse_mode: "Markdown"
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
