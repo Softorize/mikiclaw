@@ -6,12 +6,35 @@ Inspired by [OpenClaw](https://openclaw.ai) and built with the same philosophy -
 
 ## Features
 
+### Core
 - **🤖 Telegram Bot** - Chat with your AI assistant on Telegram
 - **🧠 Claude AI** - Powered by Anthropic's Claude API
 - **📦 ClawHub Skills** - Extend capabilities with skills from ClawHub
 - **💫 SOUL.md Personality** - Define your assistant's personality
 - **❤️ Heartbeat** - Scheduled tasks and check-ins
 - **🔒 Self-Hosted** - Your data stays on your machine
+
+### Security
+- **Credential Encryption** - API keys encrypted with AES-256-GCM
+- **Tool Policy Engine** - Block destructive commands, allowlist mode
+- **Rate Limiting** - 20 requests/minute per user
+
+### Tools
+- **bash** - Execute shell commands
+- **read_file** - Read files from filesystem
+- **write_file** - Write files to filesystem
+- **list_directory** - List directory contents
+- **glob** - Find files by pattern
+- **grep** - Search in files
+- **search** - Web search
+- **git** - Git version control
+- **get_system_info** - System information
+- **nodejs** - Execute JavaScript
+
+### Monitoring
+- **Health Endpoint** - http://localhost:18790/health
+- **Metrics** - http://localhost:18790/metrics
+- **Logging** - Daily rotating logs in ~/.mikiclaw/logs/
 
 ## Quick Start
 
@@ -21,6 +44,7 @@ Inspired by [OpenClaw](https://openclaw.ai) and built with the same philosophy -
 git clone https://github.com/Softorize/mikiclaw
 cd mikiclaw
 npm install
+npm run build
 ```
 
 ### 2. Setup
@@ -33,6 +57,9 @@ This will ask for:
 - Telegram Bot Token (from @BotFather)
 - Anthropic API Key (from console.anthropic.com)
 - Personality preference
+- Tool policy
+- Encryption preference
+- Rate limiting preference
 
 ### 3. Start
 
@@ -44,13 +71,21 @@ Message your Telegram bot to get started!
 
 ## Commands
 
+### Bot Commands
+| Command | Description |
+|---------|-------------|
+| `/start` | Start the bot |
+| `/help` | Show help |
+| `/status` | Check system status |
+| `/health` | Health check |
+| `/skills` | List installed skills |
+
+### CLI Commands
 | Command | Description |
 |---------|-------------|
 | `npm run setup` | Run interactive setup wizard |
 | `npm start` | Start the bot |
 | `npm run status` | Show bot status |
-| `mikiclaw skills install <name>` | Install a skill |
-| `mikiclaw skills list` | List installed skills |
 
 ## Configuration
 
@@ -59,15 +94,24 @@ Configuration is stored in `~/.mikiclaw/config.json`
 ```json
 {
   "telegram": {
-    "botToken": "your-token"
+    "botToken": "encrypted:..."
   },
   "anthropic": {
-    "apiKey": "your-key",
+    "apiKey": "encrypted:...",
     "model": "claude-sonnet-4-20250514"
   },
   "heartbeat": {
     "enabled": true,
     "intervalMinutes": 30
+  },
+  "security": {
+    "encryptCredentials": true,
+    "toolPolicy": "block-destructive",
+    "blockedCommands": ["rm -rf /", "dd if=", ...]
+  },
+  "rateLimit": {
+    "enabled": true,
+    "maxRequestsPerMinute": 20
   }
 }
 ```
@@ -92,12 +136,19 @@ Define your assistant's personality by editing `~/.mikiclaw/workspace/SOUL.md`:
 - Stop and ask if something seems unsafe.
 ```
 
+## Memory System
+
+Miki learns from your conversations! Memory is stored in `~/.mikiclaw/workspace/MEMORY.md`
+
+- Facts about you are automatically remembered
+- Preferences are tracked
+- Important context is preserved across sessions
+
 ## Heartbeat
 
 Configure periodic tasks in `~/.mikiclaw/workspace/HEARTBEAT.md`:
 
 ```markdown
-# Tasks
 ## daily_summary
 - schedule: "0 9 * * *"
 - action: summarize_conversations
@@ -112,18 +163,30 @@ mikiclaw skills install tavily-web-search
 mikiclaw skills list
 ```
 
-## Security
+## Health Check
 
-- Credentials stored locally in `~/.mikiclaw/`
-- No cloud dependency
-- Destructive commands require confirmation
-- Command allowlisting for safety
+```bash
+curl http://localhost:18790/health
+curl http://localhost:18790/metrics
+```
+
+## Logs
+
+Logs are stored in `~/.mikiclaw/logs/` with daily rotation.
 
 ## Requirements
 
 - Node.js 22+
 - Telegram Bot (from @BotFather)
 - Anthropic API Key (from console.anthropic.com)
+
+## Security
+
+- Credentials stored locally in `~/.mikiclaw/`
+- Optional encryption for API keys
+- No cloud dependency
+- Destructive commands require confirmation
+- Command allowlisting/blocklisting
 
 ## License
 
