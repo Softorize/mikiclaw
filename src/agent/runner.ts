@@ -1,13 +1,20 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { configManager } from "../config/manager.js";
 import { loadSoul } from "../personality/soul.js";
 import { memorySystem } from "../personality/memory.js";
 import { getTools } from "./tools.js";
 import { rateLimiter } from "../utils/rate_limiter.js";
 import { logger } from "../utils/logger.js";
+import { aiClient, AIMessage } from "../ai/client.js";
+import { anthropicProvider } from "../ai/providers/anthropic.js";
+import { kimiProvider } from "../ai/providers/kimi.js";
+import { minimaxProvider } from "../ai/providers/minimax.js";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { execa } from "execa";
+
+aiClient.registerProvider("anthropic", anthropicProvider);
+aiClient.registerProvider("kimi", kimiProvider);
+aiClient.registerProvider("minimax", minimaxProvider);
 
 interface MessageContext {
   message: string;
@@ -22,14 +29,13 @@ export async function runAgent(ctx: MessageContext): Promise<string> {
     return "⏳ Too many requests. Please wait a moment before trying again.";
   }
 
-  const apiKey = configManager.getAnthropicKey();
-  if (!apiKey) {
-    logger.warn("No Anthropic API key configured");
-    return "⚠️ Anthropic API key not configured. Run `mikiclaw setup`.";
+  const provider = configManager.getAIProvider();
+  
+  if (!configManager.isConfigured()) {
+    logger.warn("Not configured");
+    return "⚠️ AI not configured. Run `npm run setup`.";
   }
 
-  const anthropic = new Anthropic({ apiKey });
-  
   const soul = loadSoul();
   const tools = getTools();
   const conversationHistory = loadConversation(ctx.chatId);
@@ -50,37 +56,29 @@ ${memoryContext ? `\n# Relevant Memory\n${memoryContext}\n` : ""}
 - For dangerous operations (file deletion, system changes), always ask for confirmation first.
 `;
 
-  const messages: any[] = [
+  const messages: AIMessage[] = [
     ...conversationHistory,
     { role: "user", content: ctx.message }
   ];
 
   let response;
   try {
-    logger.info("Calling Anthropic API", { userId: ctx.userId, messageLength: ctx.message.length });
+    logger.info(`Calling ${provider} API`, { userId: ctx.userId, messageLength: ctx.message.length });
     
-    response = await anthropic.messages.create({
-      model: configManager.load().anthropic?.model || "claude-sonnet-4-20250514",
-      max_tokens: 4096,
-      system: systemPrompt,
-      messages: messages as any,
-      tools: tools as any
-    });
+    response = await aiClient.createCompletion(messages, tools, systemPrompt);
 
-    logger.info("Received response from Anthropic", { userId: ctx.userId, contentBlocks: response.content.length });
+    logger.info("Received response from AI", { userId: ctx.userId, hasContent: !!response.content });
   } catch (error) {
-    logger.error("Anthropic API error", { error: String(error), userId: ctx.userId });
-    throw new Error(`API Error: ${error instanceof Error ? error.message : "Unknown"}`);
+    logger.error("AI API error", { error: String(error), userId: ctx.userId, provider });
+    throw new Error(`API Error (${provider}): ${error instanceof Error ? error.message : "Unknown"}`);
   }
 
-  let finalText = "";
+  let finalText = response.content;
 
-  for (const content of response.content) {
-    if (content.type === "text") {
-      finalText += content.text;
-    } else if (content.type === "tool_use") {
-      const toolName = content.name;
-      const toolInput = content.input as Record<string, unknown>;
+  if (response.toolCalls && response.toolCalls.length > 0) {
+    for (const toolCall of response.toolCalls) {
+      const toolName = toolCall.name;
+      const toolInput = toolCall.input;
 
       logger.info("Executing tool", { tool: toolName, userId: ctx.userId });
       finalText += `\n\n🔧 *Executing: ${toolName}*`;
@@ -90,31 +88,20 @@ ${memoryContext ? `\n# Relevant Memory\n${memoryContext}\n` : ""}
 
       memorySystem.recordToolUsage(toolName, JSON.stringify(toolInput));
 
-      const toolResultMessage = {
-        role: "tool" as const,
-        content: result,
-        tool_use_id: content.id
-      };
-
-      messages.push({ role: "assistant", content: JSON.stringify(response.content) });
-      messages.push({ role: "user", content: result });
-
       try {
-        const followUp = await anthropic.messages.create({
-          model: configManager.load().anthropic?.model || "claude-sonnet-4-20250514",
-          max_tokens: 2048,
-          system: systemPrompt,
-          messages: messages as any
-        });
-
-        for (const fc of followUp.content) {
-          if (fc.type === "text") {
-            finalText += "\n\n" + fc.text;
-          }
-        }
+        const followUpMessages: AIMessage[] = [
+          ...messages, 
+          { role: "assistant", content: response.content }, 
+          { role: "user", content: result }
+        ];
+        const followUp = await aiClient.createCompletion(
+          followUpMessages,
+          tools,
+          systemPrompt
+        );
+        finalText += "\n\n" + followUp.content;
       } catch (e) {
         logger.error("Follow-up API call failed", { error: String(e) });
-        finalText += "\n\n⚠️ Could not get follow-up response.";
       }
     }
   }

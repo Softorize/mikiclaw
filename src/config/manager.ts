@@ -14,6 +14,22 @@ const ConfigSchema = z.object({
     apiKey: z.string().optional(),
     model: z.string().default("claude-sonnet-4-20250514")
   }).optional(),
+  ai: z.object({
+    provider: z.enum(["anthropic", "kimi", "minimax"]).default("anthropic"),
+    model: z.string().optional(),
+    providers: z.object({
+      anthropic: z.object({
+        apiKey: z.string().optional()
+      }).optional(),
+      kimi: z.object({
+        apiKey: z.string().optional()
+      }).optional(),
+      minimax: z.object({
+        apiKey: z.string().optional(),
+        groupId: z.string().optional()
+      }).optional()
+    }).optional()
+  }).optional(),
   heartbeat: z.object({
     enabled: z.boolean().default(true),
     intervalMinutes: z.number().default(30)
@@ -104,6 +120,15 @@ class ConfigManager {
         apiKey: undefined,
         model: "claude-sonnet-4-20250514"
       },
+      ai: {
+        provider: "anthropic",
+        model: "claude-sonnet-4-20250514",
+        providers: {
+          anthropic: { apiKey: undefined },
+          kimi: { apiKey: undefined },
+          minimax: { apiKey: undefined, groupId: undefined }
+        }
+      },
       heartbeat: {
         enabled: true,
         intervalMinutes: 30
@@ -129,7 +154,18 @@ class ConfigManager {
 
   isConfigured(): boolean {
     const config = this.load();
-    return !!(config.telegram?.botToken && config.anthropic?.apiKey);
+    const provider = config.ai?.provider || "anthropic";
+    
+    if (provider === "anthropic") {
+      return !!(config.telegram?.botToken && config.anthropic?.apiKey);
+    }
+    if (provider === "kimi") {
+      return !!(config.telegram?.botToken && config.ai?.providers?.kimi?.apiKey);
+    }
+    if (provider === "minimax") {
+      return !!(config.telegram?.botToken && config.ai?.providers?.minimax?.apiKey && config.ai?.providers?.minimax?.groupId);
+    }
+    return false;
   }
 
   getTelegramToken(): string | undefined {
@@ -138,6 +174,14 @@ class ConfigManager {
 
   getAnthropicKey(): string | undefined {
     return this.load().anthropic?.apiKey;
+  }
+
+  getAIProvider(): string {
+    return this.load().ai?.provider || "anthropic";
+  }
+
+  getAIModel(): string {
+    return this.load().ai?.model || "claude-sonnet-4-20250514";
   }
 
   getWorkspacePath(): string {

@@ -1,7 +1,7 @@
 import inquirer from "inquirer";
 import ora from "ora";
 import { configManager } from "../config/manager.js";
-import { existsSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 export async function setupWizard() {
@@ -12,6 +12,17 @@ export async function setupWizard() {
 
   const answers = await inquirer.prompt([
     {
+      type: "list",
+      name: "provider",
+      message: "Which AI provider do you want to use?",
+      choices: [
+        { name: "🤖 Anthropic Claude (Recommended) - claude-sonnet-4", value: "anthropic" },
+        { name: "🌙 Kimi (Moonshot AI) - kimi-k2.5", value: "kimi" },
+        { name: "🔷 MiniMax - M2.5", value: "minimax" }
+      ],
+      default: config.ai?.provider || "anthropic"
+    },
+    {
       type: "input",
       name: "telegramToken",
       message: "Telegram Bot Token (from @BotFather):",
@@ -20,19 +31,6 @@ export async function setupWizard() {
         if (!input) return "Token is required";
         if (!input.match(/^\d+:[A-Za-z0-9_-]+$/)) {
           return "Invalid token format. Should be like: 1234567890:ABCdefGHIjklMNOpqrsTUVwxyz";
-        }
-        return true;
-      }
-    },
-    {
-      type: "password",
-      name: "anthropicKey",
-      message: "Anthropic API Key (from console.anthropic.com):",
-      default: config.anthropic?.apiKey || "",
-      validate: (input: string) => {
-        if (!input) return "API key is required";
-        if (!input.startsWith("sk-ant-")) {
-          return "Invalid API key format. Should start with: sk-ant-";
         }
         return true;
       }
@@ -80,10 +78,113 @@ export async function setupWizard() {
     }
   ]);
 
+  let apiKeyAnswer: any = {};
+  let modelAnswer: any = {};
+
+  if (answers.provider === "anthropic") {
+    apiKeyAnswer = await inquirer.prompt([
+      {
+        type: "password",
+        name: "apiKey",
+        message: "Anthropic API Key (from console.anthropic.com):",
+        default: config.anthropic?.apiKey || "",
+        validate: (input: string) => {
+          if (!input) return "API key is required";
+          if (!input.startsWith("sk-ant-")) {
+            return "Invalid API key format. Should start with: sk-ant-";
+          }
+          return true;
+        }
+      }
+    ]);
+    modelAnswer = await inquirer.prompt([
+      {
+        type: "list",
+        name: "model",
+        message: "Which Claude model?",
+        choices: [
+          { name: "Claude Sonnet 4 (Recommended)", value: "claude-sonnet-4-20250514" },
+          { name: "Claude 3.5 Sonnet", value: "claude-3-5-sonnet-20241022" },
+          { name: "Claude 3 Opus (Most Capable)", value: "claude-3-opus-20240229" }
+        ],
+        default: config.ai?.model || "claude-sonnet-4-20250514"
+      }
+    ]);
+  } else if (answers.provider === "kimi") {
+    apiKeyAnswer = await inquirer.prompt([
+      {
+        type: "password",
+        name: "apiKey",
+        message: "Kimi API Key (from platform.moonshot.ai):",
+        default: config.ai?.providers?.kimi?.apiKey || "",
+        validate: (input: string) => {
+          if (!input) return "API key is required";
+          return true;
+        }
+      }
+    ]);
+    modelAnswer = await inquirer.prompt([
+      {
+        type: "list",
+        name: "model",
+        message: "Which Kimi model?",
+        choices: [
+          { name: "Kimi K2.5 (Recommended)", value: "kimi-k2.5" },
+          { name: "Kimi K2 Thinking", value: "kimi-k2-thinking" }
+        ],
+        default: config.ai?.model || "kimi-k2.5"
+      }
+    ]);
+  } else if (answers.provider === "minimax") {
+    apiKeyAnswer = await inquirer.prompt([
+      {
+        type: "password",
+        name: "apiKey",
+        message: "MiniMax API Key (from platform.minimax.io):",
+        default: config.ai?.providers?.minimax?.apiKey || "",
+        validate: (input: string) => {
+          if (!input) return "API key is required";
+          return true;
+        }
+      },
+      {
+        type: "input",
+        name: "groupId",
+        message: "MiniMax Group ID:",
+        default: config.ai?.providers?.minimax?.groupId || "",
+        validate: (input: string) => {
+          if (!input) return "Group ID is required";
+          return true;
+        }
+      }
+    ]);
+    modelAnswer = await inquirer.prompt([
+      {
+        type: "list",
+        name: "model",
+        message: "Which MiniMax model?",
+        choices: [
+          { name: "MiniMax M2.5 (Recommended)", value: "MiniMax-M2.5" },
+          { name: "MiniMax M2.5 High Speed", value: "MiniMax-M2.5-highspeed" },
+          { name: "MiniMax M2.1", value: "MiniMax-M2.1" }
+        ],
+        default: config.ai?.model || "MiniMax-M2.5"
+      }
+    ]);
+  }
+
   const spinner = ora("Validating credentials...").start();
 
   const tokenValid = answers.telegramToken.match(/^\d+:[A-Za-z0-9_-]+$/);
-  const keyValid = answers.anthropicKey.startsWith("sk-ant-");
+  let keyValid = false;
+
+  if (answers.provider === "anthropic") {
+    keyValid = apiKeyAnswer.apiKey?.startsWith("sk-ant-") || false;
+  } else if (answers.provider === "kimi") {
+    keyValid = !!apiKeyAnswer.apiKey;
+  } else if (answers.provider === "minimax") {
+    keyValid = !!apiKeyAnswer.apiKey && !!apiKeyAnswer.groupId;
+  }
 
   if (!tokenValid || !keyValid) {
     spinner.fail("Invalid credentials");
@@ -93,14 +194,27 @@ export async function setupWizard() {
   spinner.succeed("Credentials validated!");
   
   spinner.start("Saving configuration...");
-  configManager.save({
+  
+  const configToSave: any = {
     telegram: {
       botToken: answers.telegramToken,
       allowedUsers: []
     },
     anthropic: {
-      apiKey: answers.anthropicKey,
-      model: "claude-sonnet-4-20250514"
+      apiKey: answers.provider === "anthropic" ? apiKeyAnswer.apiKey : config.anthropic?.apiKey,
+      model: modelAnswer.model
+    },
+    ai: {
+      provider: answers.provider,
+      model: modelAnswer.model,
+      providers: {
+        anthropic: { apiKey: answers.provider === "anthropic" ? apiKeyAnswer.apiKey : undefined },
+        kimi: { apiKey: answers.provider === "kimi" ? apiKeyAnswer.apiKey : undefined },
+        minimax: { 
+          apiKey: answers.provider === "minimax" ? apiKeyAnswer.apiKey : undefined,
+          groupId: answers.provider === "minimax" ? apiKeyAnswer.groupId : undefined
+        }
+      }
     },
     heartbeat: {
       enabled: answers.heartbeat,
@@ -122,7 +236,9 @@ export async function setupWizard() {
       enabled: answers.rateLimit,
       maxRequestsPerMinute: 20
     }
-  });
+  };
+
+  configManager.save(configToSave);
   spinner.succeed("Configuration saved!");
 
   spinner.start("Creating workspace...");
@@ -139,15 +255,17 @@ export async function setupWizard() {
   }
   spinner.succeed("Workspace created!");
 
+  const providerNames: Record<string, string> = {
+    anthropic: "Anthropic Claude",
+    kimi: "Kimi (Moonshot AI)",
+    minimax: "MiniMax"
+  };
+
   console.log("\n✅ Setup complete!");
+  console.log(`\nAI Provider: ${providerNames[answers.provider]} (${modelAnswer.model})`);
   console.log("\nNext steps:");
   console.log("  1. Run 'npm start' to start your bot");
-  console.log("  2. Message your Telegram bot to get started");
-  console.log("\n📝 Available commands in bot:");
-  console.log("  /start - Start the bot");
-  console.log("  /help - Show help");
-  console.log("  /status - Check system status");
-  console.log("  /skills - List skills\n");
+  console.log("  2. Message your Telegram bot to get started\n");
 }
 
 function getSoulForPersonality(type: string): string {

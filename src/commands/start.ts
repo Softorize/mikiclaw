@@ -63,11 +63,18 @@ export async function startBot() {
 
   bot.command("status", async (ctx) => {
     const config = configManager.load();
+    const provider = config.ai?.provider || "anthropic";
+    const providerNames: Record<string, string> = {
+      anthropic: "Anthropic Claude",
+      kimi: "Kimi (Moonshot AI)",
+      minimax: "MiniMax"
+    };
+    
     ctx.reply(`*System Status*
 
 ✅ Telegram: Connected
-✅ Anthropic: Configured
-📡 Model: ${config.anthropic?.model || "claude-sonnet-4-20250514"}
+✅ AI: ${providerNames[provider]} configured
+📡 Model: ${config.ai?.model || "claude-sonnet-4-20250514"}
 ❤️ Heartbeat: ${config.heartbeat?.enabled ? "Enabled" : "Disabled"}
 🔒 Security: ${config.security?.toolPolicy || "block-destructive"}
 ⏱️ Rate Limit: ${config.rateLimit?.enabled ? "Enabled" : "Disabled"}
