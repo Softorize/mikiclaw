@@ -1,6 +1,6 @@
 # 🦞 mikiclaw
 
-Your personal AI assistant with Telegram interface, ClawHub skills, and SOUL.md personality.
+Your personal AI assistant with Telegram interface, multi-model support, ClawHub skills, and SOUL.md personality.
 
 Inspired by [OpenClaw](https://openclaw.ai) and built with the same philosophy - a self-hosted AI agent that you control.
 
@@ -8,11 +8,16 @@ Inspired by [OpenClaw](https://openclaw.ai) and built with the same philosophy -
 
 ### Core
 - **🤖 Telegram Bot** - Chat with your AI assistant on Telegram
-- **🧠 Claude AI** - Powered by Anthropic's Claude API
+- **🧠 Multi-Model AI** - Support for Anthropic Claude, Kimi (Moonshot), and MiniMax
 - **📦 ClawHub Skills** - Extend capabilities with skills from ClawHub
 - **💫 SOUL.md Personality** - Define your assistant's personality
 - **❤️ Heartbeat** - Scheduled tasks and check-ins
 - **🔒 Self-Hosted** - Your data stays on your machine
+
+### AI Providers
+- **🤖 Anthropic Claude** - claude-sonnet-4, claude-3.5-sonnet, claude-3-opus
+- **🌙 Kimi (Moonshot AI)** - kimi-k2.5, kimi-k2-thinking
+- **🔷 MiniMax** - M2.5, M2.5-highspeed, M2.1
 
 ### Security
 - **Credential Encryption** - API keys encrypted with AES-256-GCM
