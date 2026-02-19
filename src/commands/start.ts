@@ -7,6 +7,7 @@ import { healthServer } from "../bot/health.js";
 import { logger } from "../utils/logger.js";
 import { sessionManager } from "../session/manager.js";
 import { webhookServer } from "../webhooks/server.js";
+import { getRandomDadJoke, getRandomTechJoke, getRandomFunFact } from "../personality/fun.js";
 
 export async function startBot() {
   logger.info("Starting mikiclaw");
@@ -59,6 +60,8 @@ export async function startBot() {
 /skills - List installed skills
 /health - Health check
 /session - Show session info
+/joke - Get a random joke
+/fact - Get a random fun fact
 
 *Just send me a message and I'll help!*
 `, { parse_mode: "Markdown" });
@@ -125,6 +128,17 @@ Last Active: ${new Date(session.lastActive).toLocaleString()}
 *All Sessions:*
 ${sessions.slice(0, 5).map(s => `- ${s.id}: ${s.messageCount} messages`).join("\n")}
 `, { parse_mode: "Markdown" });
+  });
+
+  bot.command("joke", async (ctx) => {
+    const isTech = Math.random() < 0.5;
+    const joke = isTech ? getRandomTechJoke() : getRandomDadJoke();
+    await ctx.reply(`😂 *${isTech ? "Tech" : "Dad"} Joke*\n\n${joke}`, { parse_mode: "Markdown" });
+  });
+
+  bot.command("fact", async (ctx) => {
+    const fact = getRandomFunFact();
+    await ctx.reply(`💡 *Did You Know?*\n\n${fact}`, { parse_mode: "Markdown" });
   });
 
   bot.on("message", messageHandler);

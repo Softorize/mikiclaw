@@ -1,5 +1,12 @@
 import { Context } from "telegraf";
 import { runAgent } from "../agent/runner.js";
+import { 
+  checkEasterEgg, 
+  shouldTellJoke, 
+  shouldTellFunFact, 
+  getRandomResponse,
+  getReaction 
+} from "../personality/fun.js";
 
 interface MessageContext {
   message: string;
@@ -26,6 +33,21 @@ export async function messageHandler(ctx: Context) {
   const userId = String(ctx.from?.id);
   const username = ctx.from?.username;
 
+  const easterEgg = checkEasterEgg(text);
+  if (easterEgg) {
+    if (easterEgg.reaction) {
+      try {
+        const emoji = getReaction(easterEgg.reaction as any);
+        await ctx.react(emoji as any);
+      } catch {}
+    }
+  }
+
+  if (easterEgg?.response && Math.random() < 0.5) {
+    await ctx.reply(easterEgg.response, { parse_mode: "Markdown" });
+    return;
+  }
+
   await ctx.sendChatAction("typing");
 
   const mctx: MessageContext = {
@@ -33,11 +55,17 @@ export async function messageHandler(ctx: Context) {
     userId,
     username,
     chatId,
-    channel: 'telegram'
+    channel: "telegram"
   };
 
   try {
-    const response = await runAgent(mctx);
+    let response = await runAgent(mctx);
+
+    if (shouldTellJoke() && !response.toLowerCase().includes("joke")) {
+      response += `\n\n${getRandomResponse("joke")}`;
+    } else if (shouldTellFunFact() && !response.toLowerCase().includes("fact")) {
+      response += `\n\n💡 Did you know? ${getRandomResponse("fact")}`;
+    }
 
     await ctx.reply(response, {
       parse_mode: "Markdown"
@@ -45,6 +73,11 @@ export async function messageHandler(ctx: Context) {
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     console.error("Agent error:", errorMessage);
+    
+    try {
+      await ctx.react("😅" as any);
+    } catch {}
+    
     await ctx.reply(`❌ Sorry, something went wrong: ${errorMessage}`);
   }
 }

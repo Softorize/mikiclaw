@@ -2,6 +2,7 @@ import { Telegraf } from "telegraf";
 import { Cron } from "croner";
 import { loadHeartbeatConfig } from "../personality/soul.js";
 import { configManager } from "../config/manager.js";
+import { getRandomDadJoke, getRandomFunFact, getRandomGreeting } from "../personality/fun.js";
 
 interface HeartbeatTask {
   name: string;
@@ -18,7 +19,6 @@ export class HeartbeatEngine {
 
   constructor(bot: Telegraf) {
     this.bot = bot;
-    // Use system timezone or default to UTC
     this.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
   }
 
@@ -76,16 +76,23 @@ export class HeartbeatEngine {
   }
 
   private async sendIdleMessage(chatId: number): Promise<void> {
-    const messages = [
-      "Hey! Haven't heard from you in a while. Everything okay?",
-      "👋 Hi! I'm still here if you need anything.",
-      "Quick check-in - any tasks I can help with?"
+    const funMessages = [
+      "👋 Hey! Haven't heard from you in a while. Everything okay?",
+      "🦞 *tap tap* Is this thing on?",
+      "💭 Thinking about you... and all the cool things we could build together!",
+      "🎮 Just checking in! Need any help with anything?",
+      "☕ Coffee break? I'm always here if you need me!",
+      "🌟 Miss me yet? 😄",
+      `😄 ${getRandomGreeting()}`,
+      `🎉 Fun fact: ${getRandomFunFact()}`,
+      `😂 Here's a joke: ${getRandomDadJoke()}`,
+      "🤖 *beep boop* System check complete! How can I help?"
     ];
     
-    const message = messages[Math.floor(Math.random() * messages.length)];
+    const message = funMessages[Math.floor(Math.random() * funMessages.length)];
     
     try {
-      await this.bot.telegram.sendMessage(chatId, message);
+      await this.bot.telegram.sendMessage(chatId, message, { parse_mode: "Markdown" });
     } catch (e) {
       console.warn(`Failed to send idle message to ${chatId}`);
     }
@@ -103,6 +110,12 @@ export class HeartbeatEngine {
         break;
       case "send_status":
         await this.sendStatusReport();
+        break;
+      case "send_joke":
+        await this.sendJoke();
+        break;
+      case "send_fun_fact":
+        await this.sendFunFact();
         break;
       default:
         console.warn(`Unknown action: ${task.action}`);
@@ -142,5 +155,31 @@ export class HeartbeatEngine {
 
   private async sendStatusReport(): Promise<void> {
     console.log("📊 Sending status report...");
+  }
+
+  private async sendJoke(): Promise<void> {
+    console.log("😂 Sending joke...");
+    this.lastInteraction.forEach(async (_, chatId) => {
+      try {
+        await this.bot.telegram.sendMessage(
+          chatId, 
+          `😂 *Daily Joke*\n\n${getRandomDadJoke()}`,
+          { parse_mode: "Markdown" }
+        );
+      } catch {}
+    });
+  }
+
+  private async sendFunFact(): Promise<void> {
+    console.log("💡 Sending fun fact...");
+    this.lastInteraction.forEach(async (_, chatId) => {
+      try {
+        await this.bot.telegram.sendMessage(
+          chatId,
+          `💡 *Did You Know?*\n\n${getRandomFunFact()}`,
+          { parse_mode: "Markdown" }
+        );
+      } catch {}
+    });
   }
 }
