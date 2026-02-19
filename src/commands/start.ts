@@ -187,6 +187,11 @@ ${sessions.slice(0, 5).map(s => `- ${s.id}: ${s.messageCount} messages`).join("\
     heartbeatEngine?.stop();
     healthServer.stop();
     webhookServer.stop();
+    
+    // Close browser if open
+    const { closeBrowser } = await import("../tools/browser_search.js");
+    await closeBrowser();
+    
     logger.close();
     
     process.exit(0);

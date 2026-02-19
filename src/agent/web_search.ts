@@ -1,4 +1,5 @@
 import { logger } from "../utils/logger.js";
+import { browserSearch } from "../tools/browser_search.js";
 
 interface SearchResult {
   title: string;
@@ -6,20 +7,31 @@ interface SearchResult {
   snippet: string;
 }
 
-// Default Serper API key for mikiclaw
+// Default Serper API key for mikiclaw (fallback)
 const SERPER_API_KEY = "6eff15225f04226d872258d6daac94757679efb4";
 
 export async function webSearch(query: string): Promise<string> {
   logger.info("Performing web search", { query });
   
   try {
-    // Try Serper first (Google Search API)
+    // Try browser-based search first (like OpenClaw does!)
+    const browserResults = await browserSearch(query);
+    
+    // If browser search succeeded and got results, return them
+    if (!browserResults.includes("No results found") && !browserResults.includes("error")) {
+      logger.info("Browser search succeeded");
+      return browserResults;
+    }
+    
+    // Fallback to Serper API
+    logger.info("Browser search failed or returned no results, trying Serper API");
     const serperResults = await searchWithSerper(query);
+    
     if (serperResults.length > 0) {
       return formatResults(query, serperResults);
     }
     
-    // Fallback to DuckDuckGo
+    // Last fallback to DuckDuckGo
     const ddgResults = await searchDuckDuckGo(query);
     if (ddgResults.length > 0) {
       return formatResults(query, ddgResults);
@@ -65,7 +77,6 @@ async function searchWithSerper(query: string): Promise<SearchResult[]> {
     
     const results: SearchResult[] = [];
     
-    // Extract organic search results
     if (data.organic && Array.isArray(data.organic)) {
       for (const item of data.organic.slice(0, 5)) {
         results.push({
@@ -76,7 +87,6 @@ async function searchWithSerper(query: string): Promise<SearchResult[]> {
       }
     }
     
-    // If no organic results, try other result types
     if (results.length === 0 && data.answerBox) {
       results.push({
         title: data.answerBox.title || "Answer",
@@ -111,7 +121,6 @@ async function searchDuckDuckGo(query: string): Promise<SearchResult[]> {
     }
 
     const html = await response.text();
-    
     const resultBlocks = html.split('class="result"').slice(1);
     
     for (const block of resultBlocks.slice(0, 5)) {
