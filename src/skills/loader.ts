@@ -1,6 +1,7 @@
 import { configManager } from "../config/manager.js";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { validateCommand } from "../utils/validation.js";
 
 interface SkillManifest {
   name: string;
@@ -19,7 +20,7 @@ class SkillsLoader {
 
   loadSkills(): void {
     const skillsDir = join(configManager.getWorkspacePath(), "..", "skills");
-    
+
     if (!existsSync(skillsDir)) {
       return;
     }
@@ -31,10 +32,34 @@ class SkillsLoader {
 
     for (const dir of skillDirs) {
       const manifestPath = join(skillsDir, dir, "claw.json");
-      
+
       if (existsSync(manifestPath)) {
         try {
           const manifest = JSON.parse(readFileSync(manifestPath, "utf-8")) as SkillManifest;
+
+          // Validate skill manifest
+          if (!manifest.name || !manifest.version) {
+            console.warn(`⚠️  Skipping skill ${dir}: missing required fields`);
+            continue;
+          }
+
+          // Validate tools in manifest
+          if (manifest.tools) {
+            for (const tool of manifest.tools) {
+              if (!tool.name || !tool.command) {
+                console.warn(`⚠️  Skipping tool ${tool.name} in skill ${dir}: missing required fields`);
+                continue;
+              }
+
+              // Validate command for security
+              const cmdValidation = validateCommand(tool.command);
+              if (!cmdValidation.valid) {
+                console.warn(`⚠️  Skipping tool ${tool.name} in skill ${dir}: ${cmdValidation.error}`);
+                continue;
+              }
+            }
+          }
+
           this.loadedSkills.set(manifest.name, manifest);
           console.log(`📦 Loaded skill: ${manifest.name}`);
         } catch (e) {
@@ -65,7 +90,8 @@ class SkillsLoader {
               type: "object",
               properties: {
                 input: { type: "string", description: "Input for the tool" }
-              }
+              },
+              required: ["input"]
             }
           });
         }
@@ -86,9 +112,31 @@ class SkillsLoader {
       return `Error: Tool '${toolName}' not found in skill '${skillName}'`;
     }
 
+    // Security: Validate the command before execution
+    const cmdValidation = validateCommand(tool.command);
+    if (!cmdValidation.valid) {
+      return `⛔ Tool command blocked: ${cmdValidation.error}`;
+    }
+
+    // Security: Check if command is allowed by policy
+    const fullCommand = tool.command + " " + JSON.stringify(input);
+    if (!configManager.isCommandAllowed(fullCommand)) {
+      return "⛔ This command has been blocked for safety.";
+    }
+
     try {
       const { execa } = await import("execa");
-      const { stdout, stderr } = await execa("bash", ["-c", tool.command + " " + JSON.stringify(input)]);
+
+      // Security: Pass input as environment variable or stdin instead of command line
+      // This prevents command injection through crafted input
+      const { stdout, stderr } = await execa(tool.command, {
+        input: JSON.stringify(input),
+        timeout: 30000,
+        maxBuffer: 10 * 1024 * 1024,
+        env: {
+          SKILL_INPUT: JSON.stringify(input)
+        }
+      });
       return stdout || stderr || "(no output)";
     } catch (error) {
       return `Error: ${error instanceof Error ? error.message : "Unknown error"}`;

@@ -1,0 +1,10 @@
+[
+  {
+    "role": "user",
+    "content": "great, why are you saying HI in each message ?"
+  },
+  {
+    "role": "assistant",
+    "content": "Hey Zhirayr! 👋 I'm trying to be friendly and approachable with each interaction. Is that okay with you, or would you prefer something different?"
+  }
+]

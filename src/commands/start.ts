@@ -5,6 +5,8 @@ import { messageHandler } from "../bot/handlers.js";
 import { HeartbeatEngine } from "../heartbeat/engine.js";
 import { healthServer } from "../bot/health.js";
 import { logger } from "../utils/logger.js";
+import { sessionManager } from "../session/manager.js";
+import { webhookServer } from "../webhooks/server.js";
 
 export async function startBot() {
   logger.info("Starting mikiclaw");
@@ -56,6 +58,7 @@ export async function startBot() {
 /status - Check system status
 /skills - List installed skills
 /health - Health check
+/session - Show session info
 
 *Just send me a message and I'll help!*
 `, { parse_mode: "Markdown" });
@@ -67,7 +70,8 @@ export async function startBot() {
     const providerNames: Record<string, string> = {
       anthropic: "Anthropic Claude",
       kimi: "Kimi (Moonshot AI)",
-      minimax: "MiniMax"
+      minimax: "MiniMax",
+      openai: "OpenAI GPT"
     };
     
     ctx.reply(`*System Status*
@@ -79,6 +83,7 @@ export async function startBot() {
 🔒 Security: ${config.security?.toolPolicy || "block-destructive"}
 ⏱️ Rate Limit: ${config.rateLimit?.enabled ? "Enabled" : "Disabled"}
 🔐 Encryption: ${config.security?.encryptCredentials ? "Enabled" : "Disabled"}
+📊 Session Mode: ${config.session?.mode || "main"}
 
 📁 Workspace: ${configManager.getWorkspacePath()}
 📝 Log: ${logger.getLogPath()}
@@ -106,6 +111,22 @@ Uptime: ${health.uptime}s
     }
   });
 
+  bot.command("session", async (ctx) => {
+    const sessions = sessionManager.listSessions();
+    const session = sessionManager.getOrCreateSession(ctx.chat?.id || 0, String(ctx.from?.id), ctx.from?.username);
+    
+    ctx.reply(`*Session Info*
+
+Mode: ${session.mode}
+Messages: ${session.messageCount}
+Created: ${new Date(session.createdAt).toLocaleString()}
+Last Active: ${new Date(session.lastActive).toLocaleString()}
+
+*All Sessions:*
+${sessions.slice(0, 5).map(s => `- ${s.id}: ${s.messageCount} messages`).join("\n")}
+`, { parse_mode: "Markdown" });
+  });
+
   bot.on("message", messageHandler);
 
   spinner.succeed("Bot initialized!");
@@ -123,6 +144,10 @@ Uptime: ${health.uptime}s
   spinner.start("Starting health server...");
   healthServer.start();
   spinner.succeed("Health server started on port 18790");
+
+  spinner.start("Starting webhook server...");
+  webhookServer.start();
+  spinner.succeed("Webhook server started!");
 
   spinner.start("Connecting to Telegram...");
   
@@ -147,6 +172,7 @@ Uptime: ${health.uptime}s
     bot.stop(signal);
     heartbeatEngine?.stop();
     healthServer.stop();
+    webhookServer.stop();
     logger.close();
     
     process.exit(0);

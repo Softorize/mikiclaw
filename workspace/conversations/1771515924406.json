@@ -1,0 +1,10 @@
+[
+  {
+    "role": "user",
+    "content": "what can you do for me"
+  },
+  {
+    "role": "assistant",
+    "content": "Hey Zhirayr 👋, I'm Miki, your AI assistant ready to help you with a variety of tasks. Here's what I can do for you:\n\n1. **Information and Web Searches:** Need to know something? I can search the web for you and bring back the most relevant information.\n\n2. **Read and Analyze Documents:** You can send me files like PDFs, Word documents, PPTs, Excel spreadsheets, and text files, and I can read, summarize, or analyze them for you.\n\n3. **Code and Software Development:** Need help with coding or understanding software? I can read code snippets and provide insights, explanations, or solutions.\n\n4. **System and File Management:** I can assist with tasks like listing files, reading from and writing to files, and even executing simple scripts or commands if needed.\n\n5. **Education and Learning:** Got questions about a particular topic? I can provide explanations, examples, and resources to help you learn.\n\n6. **Productivity Tips:** Looking to boost your productivity? I can offer tips and strategies tailored to your needs.\n\n7. **Decision Making:** Need help weighing pros and cons or brainstorming ideas? I can assist with that too.\n\nIf you have something specific in mind, just let me know! How can I assist you today?"
+  }
+]

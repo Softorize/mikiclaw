@@ -1,5 +1,7 @@
 import { configManager } from "../../config/manager.js";
 import type { AIProvider, AIMessage, AIResponse, AIModel, AITool } from "../client.js";
+import { fetchWithRetry } from "../../utils/retry.js";
+import { logger } from "../../utils/logger.js";
 
 export const minimaxProvider: AIProvider = {
   name: "minimax",
@@ -13,7 +15,7 @@ export const minimaxProvider: AIProvider = {
     const config = configManager.load();
     const apiKey = config.ai?.providers?.minimax?.apiKey;
     const groupId = config.ai?.providers?.minimax?.groupId;
-    
+
     if (!apiKey) {
       throw new Error("MiniMax API key not configured. Add 'ai.providers.minimax.apiKey' in config.");
     }
@@ -25,7 +27,7 @@ export const minimaxProvider: AIProvider = {
     const model = (config.ai?.model as AIModel) || "MiniMax-M2.5";
 
     const formattedMessages: Array<{ role: string; content: string }> = [];
-    
+
     if (systemPrompt) {
       formattedMessages.push({ role: "system", content: systemPrompt });
     }
@@ -46,31 +48,36 @@ export const minimaxProvider: AIProvider = {
       }
     }));
 
-    try {
-      const response = await fetch(`https://api.minimax.chat/v1/text/chatcompletion_v2?GroupId=${groupId}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${apiKey}`
-        },
-        body: JSON.stringify({
-          model,
-          messages: formattedMessages,
-          tools: toolDefs,
-          temperature: 0.7,
-          max_tokens: 4096
-        })
-      });
+    const url = `https://api.minimax.chat/v1/text/chatcompletion_v2?GroupId=${groupId}`;
 
-      if (!response.ok) {
-        const error = await response.text();
-        throw new Error(`MiniMax API error: ${response.status} - ${error}`);
-      }
+    try {
+      const response = await fetchWithRetry(
+        url,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${apiKey}`
+          },
+          body: JSON.stringify({
+            model,
+            messages: formattedMessages,
+            tools: toolDefs,
+            temperature: 0.7,
+            max_tokens: 4096
+          })
+        },
+        {
+          maxRetries: 3,
+          timeout: 120000,
+          retryableStatusCodes: [408, 429, 500, 502, 503, 504]
+        }
+      );
 
       const data = await response.json() as any;
-      
+
       const message = data.choices?.[0]?.message;
-      
+
       if (!message) {
         throw new Error("No response from MiniMax API");
       }
@@ -90,6 +97,7 @@ export const minimaxProvider: AIProvider = {
 
       return { content, toolCalls: toolCalls.length > 0 ? toolCalls : undefined };
     } catch (error) {
+      logger.error("MiniMax API error after retries", { error: String(error) });
       if (error instanceof Error && error.message.includes("MiniMax API error")) {
         throw error;
       }

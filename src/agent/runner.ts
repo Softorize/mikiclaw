@@ -3,11 +3,15 @@ import { loadSoul } from "../personality/soul.js";
 import { memorySystem } from "../personality/memory.js";
 import { getTools } from "./tools.js";
 import { rateLimiter } from "../utils/rate_limiter.js";
+import { loopDetector } from "../utils/loop_detector.js";
+import { isToolAllowed } from "../config/tool_policies.js";
 import { logger } from "../utils/logger.js";
 import { aiClient, AIMessage } from "../ai/client.js";
 import { anthropicProvider } from "../ai/providers/anthropic.js";
 import { kimiProvider } from "../ai/providers/kimi.js";
 import { minimaxProvider } from "../ai/providers/minimax.js";
+import { openaiProvider } from "../ai/providers/openai.js";
+import { sessionManager } from "../session/manager.js";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { execa } from "execa";
@@ -15,6 +19,7 @@ import { execa } from "execa";
 aiClient.registerProvider("anthropic", anthropicProvider);
 aiClient.registerProvider("kimi", kimiProvider);
 aiClient.registerProvider("minimax", minimaxProvider);
+aiClient.registerProvider("openai", openaiProvider);
 
 interface MessageContext {
   message: string;
@@ -29,16 +34,25 @@ export async function runAgent(ctx: MessageContext): Promise<string> {
     return "⏳ Too many requests. Please wait a moment before trying again.";
   }
 
-  const provider = configManager.getAIProvider();
-  
   if (!configManager.isConfigured()) {
-    logger.warn("Not configured");
     return "⚠️ AI not configured. Run `npm run setup`.";
+  }
+
+  const session = sessionManager.getOrCreateSession(ctx.chatId, ctx.userId, ctx.username);
+  
+  const loopCheck = loopDetector.detect(ctx.chatId);
+  if (loopCheck.shouldStop) {
+    logger.warn("Loop detected, stopping", { chatId: ctx.chatId, reason: loopCheck.reason });
+    loopDetector.clearHistory(ctx.chatId);
+    return `⛔ Detected a loop and stopped: ${loopCheck.reason}. Let's try something different!`;
+  }
+  if (loopCheck.warning) {
+    logger.warn("Loop warning", { chatId: ctx.chatId, warning: loopCheck.warning });
   }
 
   const soul = loadSoul();
   const tools = getTools();
-  const conversationHistory = loadConversation(ctx.chatId);
+  const sessionContext = sessionManager.getContext(session.id);
   const memoryContext = memorySystem.getRelevantContext(ctx.message);
 
   const systemPrompt = `You are an AI assistant with a distinct personality. Follow the SOUL.md below:
@@ -57,20 +71,20 @@ ${memoryContext ? `\n# Relevant Memory\n${memoryContext}\n` : ""}
 `;
 
   const messages: AIMessage[] = [
-    ...conversationHistory,
+    ...sessionContext,
     { role: "user", content: ctx.message }
   ];
 
   let response;
+  const provider = configManager.getAIProvider();
+  
   try {
     logger.info(`Calling ${provider} API`, { userId: ctx.userId, messageLength: ctx.message.length });
-    
     response = await aiClient.createCompletion(messages, tools, systemPrompt);
-
     logger.info("Received response from AI", { userId: ctx.userId, hasContent: !!response.content });
   } catch (error) {
     logger.error("AI API error", { error: String(error), userId: ctx.userId, provider });
-    throw new Error(`API Error (${provider}): ${error instanceof Error ? error.message : "Unknown"}`);
+    return `❌ API Error (${provider}): ${error instanceof Error ? error.message : "Unknown"}`;
   }
 
   let finalText = response.content;
@@ -80,25 +94,31 @@ ${memoryContext ? `\n# Relevant Memory\n${memoryContext}\n` : ""}
       const toolName = toolCall.name;
       const toolInput = toolCall.input;
 
+      const toolCheck = isToolAllowed(toolName);
+      if (!toolCheck.allowed) {
+        logger.warn("Tool not allowed", { tool: toolName, reason: toolCheck.reason });
+        finalText += `\n\n⛔ ${toolCheck.reason}`;
+        continue;
+      }
+
       logger.info("Executing tool", { tool: toolName, userId: ctx.userId });
       finalText += `\n\n🔧 *Executing: ${toolName}*`;
 
       const result = await executeTool(toolName, toolInput);
       finalText += `\n\n${result}`;
 
+      loopDetector.recordCall(ctx.chatId, toolName, toolInput, result.length);
       memorySystem.recordToolUsage(toolName, JSON.stringify(toolInput));
 
+      const toolResultMessage: AIMessage = { role: "user", content: result };
+      
       try {
         const followUpMessages: AIMessage[] = [
-          ...messages, 
-          { role: "assistant", content: response.content }, 
-          { role: "user", content: result }
+          ...messages,
+          { role: "assistant", content: response.content },
+          toolResultMessage
         ];
-        const followUp = await aiClient.createCompletion(
-          followUpMessages,
-          tools,
-          systemPrompt
-        );
+        const followUp = await aiClient.createCompletion(followUpMessages, tools, systemPrompt);
         finalText += "\n\n" + followUp.content;
       } catch (e) {
         logger.error("Follow-up API call failed", { error: String(e) });
@@ -106,7 +126,9 @@ ${memoryContext ? `\n# Relevant Memory\n${memoryContext}\n` : ""}
     }
   }
 
-  saveConversation(ctx.chatId, ctx.message, finalText);
+  sessionManager.addMessage(session.id, "user", ctx.message);
+  sessionManager.addMessage(session.id, "assistant", finalText);
+  memorySystem.trackInteraction(ctx.chatId);
 
   return finalText;
 }
@@ -119,7 +141,7 @@ async function executeTool(toolName: string, input: Record<string, unknown>): Pr
 
       if (!configManager.isCommandAllowed(command)) {
         logger.warn("Blocked command", { command });
-        return "⛔ This command has been blocked for safety. Please try a different approach.";
+        return "⛔ This command has been blocked for safety.";
       }
 
       const timeout = (input.timeout as number) || 30;
@@ -129,10 +151,8 @@ async function executeTool(toolName: string, input: Record<string, unknown>): Pr
           timeout: timeout * 1000,
           stdio: "pipe"
         });
-        memorySystem.recordToolUsage("bash", command);
         return stdout || stderr || "(no output)";
       } catch (error) {
-        logger.error("Bash command failed", { command, error: String(error) });
         return `Error: ${error instanceof Error ? error.message : "Unknown error"}`;
       }
     }
@@ -284,47 +304,4 @@ async function executeTool(toolName: string, input: Record<string, unknown>): Pr
     default:
       return `Error: Unknown tool: ${toolName}`;
   }
-}
-
-function loadConversation(chatId: number): Array<{ role: "user" | "assistant"; content: string }> {
-  const workspacePath = configManager.getWorkspacePath();
-  const convPath = join(workspacePath, "conversations", `${chatId}.json`);
-  
-  if (!existsSync(convPath)) {
-    return [];
-  }
-
-  try {
-    const content = readFileSync(convPath, "utf-8");
-    return JSON.parse(content);
-  } catch {
-    return [];
-  }
-}
-
-function saveConversation(chatId: number, userMessage: string, assistantMessage: string) {
-  const workspacePath = configManager.getWorkspacePath();
-  const convDir = join(workspacePath, "conversations");
-  
-  if (!existsSync(convDir)) {
-    mkdirSync(convDir, { recursive: true });
-  }
-
-  const convPath = join(convDir, `${chatId}.json`);
-  let history: Array<{ role: "user" | "assistant"; content: string }> = [];
-  
-  if (existsSync(convPath)) {
-    try {
-      history = JSON.parse(readFileSync(convPath, "utf-8"));
-    } catch {}
-  }
-
-  history.push({ role: "user", content: userMessage });
-  history.push({ role: "assistant", content: assistantMessage });
-
-  if (history.length > 40) {
-    history = history.slice(-40);
-  }
-
-  writeFileSync(convPath, JSON.stringify(history, null, 2));
 }

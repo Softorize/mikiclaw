@@ -18,7 +18,8 @@ export async function setupWizard() {
       choices: [
         { name: "🤖 Anthropic Claude (Recommended) - claude-sonnet-4", value: "anthropic" },
         { name: "🌙 Kimi (Moonshot AI) - kimi-k2.5", value: "kimi" },
-        { name: "🔷 MiniMax - M2.5", value: "minimax" }
+        { name: "🔷 MiniMax - M2.5", value: "minimax" },
+        { name: "🟢 OpenAI GPT - gpt-4o", value: "openai" }
       ],
       default: config.ai?.provider || "anthropic"
     },
@@ -58,11 +59,11 @@ export async function setupWizard() {
       name: "toolPolicy",
       message: "Tool execution policy:",
       choices: [
+        { name: "Allowlist only (MOST SECURE) - Only pre-approved commands", value: "allowlist-only" },
         { name: "Block destructive commands (recommended)", value: "block-destructive" },
-        { name: "Allow all commands (not recommended)", value: "allow-all" },
-        { name: "Allowlist only - specify allowed commands", value: "allowlist-only" }
+        { name: "Allow all commands (NOT recommended)", value: "allow-all" }
       ],
-      default: "block-destructive"
+      default: "allowlist-only"
     },
     {
       type: "confirm",
@@ -171,6 +172,34 @@ export async function setupWizard() {
         default: config.ai?.model || "MiniMax-M2.5"
       }
     ]);
+  } else if (answers.provider === "openai") {
+    apiKeyAnswer = await inquirer.prompt([
+      {
+        type: "password",
+        name: "apiKey",
+        message: "OpenAI API Key (from platform.openai.com):",
+        default: config.ai?.providers?.openai?.apiKey || "",
+        validate: (input: string) => {
+          if (!input) return "API key is required";
+          return true;
+        }
+      }
+    ]);
+    modelAnswer = await inquirer.prompt([
+      {
+        type: "list",
+        name: "model",
+        message: "Which OpenAI model?",
+        choices: [
+          { name: "GPT-4o (Recommended)", value: "gpt-4o" },
+          { name: "GPT-4o Mini", value: "gpt-4o-mini" },
+          { name: "GPT-4 Turbo", value: "gpt-4-turbo" },
+          { name: "GPT-4", value: "gpt-4" },
+          { name: "GPT-3.5 Turbo", value: "gpt-3.5-turbo" }
+        ],
+        default: config.ai?.model || "gpt-4o"
+      }
+    ]);
   }
 
   const spinner = ora("Validating credentials...").start();
@@ -184,6 +213,8 @@ export async function setupWizard() {
     keyValid = !!apiKeyAnswer.apiKey;
   } else if (answers.provider === "minimax") {
     keyValid = !!apiKeyAnswer.apiKey && !!apiKeyAnswer.groupId;
+  } else if (answers.provider === "openai") {
+    keyValid = !!apiKeyAnswer.apiKey;
   }
 
   if (!tokenValid || !keyValid) {
@@ -213,7 +244,8 @@ export async function setupWizard() {
         minimax: { 
           apiKey: answers.provider === "minimax" ? apiKeyAnswer.apiKey : undefined,
           groupId: answers.provider === "minimax" ? apiKeyAnswer.groupId : undefined
-        }
+        },
+        openai: { apiKey: answers.provider === "openai" ? apiKeyAnswer.apiKey : undefined }
       }
     },
     heartbeat: {

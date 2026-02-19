@@ -1,0 +1,10 @@
+[
+  {
+    "role": "user",
+    "content": "do internet search"
+  },
+  {
+    "role": "assistant",
+    "content": "Before I start the internet search, I need to know what topic you're interested in. Could you please specify the **search query**? This will help me find the most relevant information for you."
+  }
+]

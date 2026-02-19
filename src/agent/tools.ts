@@ -20,6 +20,87 @@ export function getTools() {
       }
     },
     {
+      name: "browser_navigate",
+      description: "Navigate to a URL in a headless browser. Returns the page title.",
+      input_schema: {
+        type: "object",
+        properties: {
+          url: {
+            type: "string",
+            description: "The URL to navigate to (must include http:// or https://)"
+          }
+        },
+        required: ["url"]
+      }
+    },
+    {
+      name: "browser_screenshot",
+      description: "Take a screenshot of the current page. Returns base64 encoded image.",
+      input_schema: {
+        type: "object",
+        properties: {
+          fullPage: {
+            type: "boolean",
+            description: "Capture full page or just viewport (default: false)"
+          }
+        }
+      }
+    },
+    {
+      name: "browser_click",
+      description: "Click an element on the page using a CSS selector.",
+      input_schema: {
+        type: "object",
+        properties: {
+          selector: {
+            type: "string",
+            description: "CSS selector of the element to click"
+          }
+        },
+        required: ["selector"]
+      }
+    },
+    {
+      name: "browser_type",
+      description: "Type text into an input field using a CSS selector.",
+      input_schema: {
+        type: "object",
+        properties: {
+          selector: {
+            type: "string",
+            description: "CSS selector of the input field"
+          },
+          text: {
+            type: "string",
+            description: "Text to type"
+          }
+        },
+        required: ["selector", "text"]
+      }
+    },
+    {
+      name: "browser_content",
+      description: "Get the text content of the current page.",
+      input_schema: {
+        type: "object",
+        properties: {}
+      }
+    },
+    {
+      name: "browser_evaluate",
+      description: "Execute JavaScript in the browser context and return the result.",
+      input_schema: {
+        type: "object",
+        properties: {
+          script: {
+            type: "string",
+            description: "JavaScript code to execute"
+          }
+        },
+        required: ["script"]
+      }
+    },
+    {
       name: "read_file",
       description: "Read the contents of a file from the filesystem. Use this to view code, configs, or any text files.",
       input_schema: {
@@ -157,13 +238,13 @@ export function getTools() {
     },
     {
       name: "nodejs",
-      description: "Execute Node.js code and return the result. Useful for quick calculations or transformations.",
+      description: "Execute Node.js code safely. NOTE: Direct eval is disabled. Use bash tool with 'node -e' for calculations.",
       input_schema: {
         type: "object",
         properties: {
           code: {
             type: "string",
-            description: "JavaScript code to execute"
+            description: "JavaScript code to execute (limited functionality)"
           }
         },
         required: ["code"]

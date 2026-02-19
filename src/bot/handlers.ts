@@ -6,11 +6,12 @@ interface MessageContext {
   userId: string;
   username?: string;
   chatId: number;
+  channel?: string;
 }
 
 export async function messageHandler(ctx: Context) {
   const text = ctx.message && "text" in ctx.message ? ctx.message.text : null;
-  
+
   if (!text) {
     return;
   }
@@ -31,12 +32,13 @@ export async function messageHandler(ctx: Context) {
     message: text,
     userId,
     username,
-    chatId
+    chatId,
+    channel: 'telegram'
   };
 
   try {
     const response = await runAgent(mctx);
-    
+
     await ctx.reply(response, {
       parse_mode: "Markdown"
     });

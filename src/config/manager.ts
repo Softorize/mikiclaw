@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import JSON5 from "json5";
 import { z } from "zod";
-import { encrypt, decrypt, encryptConfig, decryptConfig } from "./encryption.js";
+import { encrypt, decrypt, encryptConfig, decryptConfig, validateKeyFile } from "./encryption.js";
 
 const ConfigSchema = z.object({
   telegram: z.object({
@@ -15,7 +15,7 @@ const ConfigSchema = z.object({
     model: z.string().default("claude-sonnet-4-20250514")
   }).optional(),
   ai: z.object({
-    provider: z.enum(["anthropic", "kimi", "minimax"]).default("anthropic"),
+    provider: z.enum(["anthropic", "kimi", "minimax", "openai"]).default("anthropic"),
     model: z.string().optional(),
     providers: z.object({
       anthropic: z.object({
@@ -27,8 +27,25 @@ const ConfigSchema = z.object({
       minimax: z.object({
         apiKey: z.string().optional(),
         groupId: z.string().optional()
+      }).optional(),
+      openai: z.object({
+        apiKey: z.string().optional()
       }).optional()
     }).optional()
+  }).optional(),
+  session: z.object({
+    mode: z.enum(["main", "per-peer", "per-channel", "per-account-channel"]).default("main"),
+    maxContextMessages: z.number().default(40)
+  }).optional(),
+  webhooks: z.object({
+    enabled: z.boolean().default(false),
+    port: z.number().default(18791),
+    endpoints: z.array(z.object({
+      path: z.string(),
+      url: z.string(),
+      method: z.enum(["GET", "POST"]).default("POST"),
+      events: z.array(z.string())
+    })).optional()
   }).optional(),
   heartbeat: z.object({
     enabled: z.boolean().default(true),
@@ -42,13 +59,29 @@ const ConfigSchema = z.object({
   }).optional(),
   security: z.object({
     encryptCredentials: z.boolean().default(true),
-    toolPolicy: z.enum(["allow-all", "block-destructive", "allowlist-only"]).default("block-destructive"),
-    allowedCommands: z.array(z.string()).optional(),
-    blockedCommands: z.array(z.string()).default(() => ["rm -rf /", "dd if=", ":(){:|:&};:", "curl | sh", "wget | sh", "mkfs", "fdisk", "dd"])
+    toolPolicy: z.enum(["allow-all", "block-destructive", "allowlist-only"]).default("allowlist-only"),
+    allowedCommands: z.array(z.string()).default(() => ["git status", "git log", "git diff", "ls", "cat", "head", "tail", "grep", "find", "pwd", "echo", "node -e", "npm run", "tsc"]),
+    blockedCommands: z.array(z.string()).default(() => ["rm -rf /", "dd if=", ":(){:|:&};:", "curl | sh", "wget | sh", "mkfs", "fdisk", "dd", "> /dev/sda", "chmod -R 777", "chown -R root", "sudo rm", "pkill -9", "kill -9 1"])
   }).optional(),
   rateLimit: z.object({
     enabled: z.boolean().default(true),
     maxRequestsPerMinute: z.number().default(20)
+  }).optional(),
+  discord: z.object({
+    botToken: z.string().optional(),
+    allowedGuilds: z.array(z.string()).optional(),
+    allowedChannels: z.array(z.string()).optional()
+  }).optional(),
+  slack: z.object({
+    appToken: z.string().optional(),
+    botToken: z.string().optional(),
+    signingSecret: z.string().optional(),
+    allowedChannels: z.array(z.string()).optional()
+  }).optional(),
+  webchat: z.object({
+    enabled: z.boolean().default(true),
+    port: z.number().default(18791),
+    bindAddress: z.string().default("127.0.0.1")
   }).optional()
 });
 
@@ -126,8 +159,18 @@ class ConfigManager {
         providers: {
           anthropic: { apiKey: undefined },
           kimi: { apiKey: undefined },
-          minimax: { apiKey: undefined, groupId: undefined }
+          minimax: { apiKey: undefined, groupId: undefined },
+          openai: { apiKey: undefined }
         }
+      },
+      session: {
+        mode: "main",
+        maxContextMessages: 40
+      },
+      webhooks: {
+        enabled: false,
+        port: 18791,
+        endpoints: []
       },
       heartbeat: {
         enabled: true,
@@ -141,13 +184,29 @@ class ConfigManager {
       },
       security: {
         encryptCredentials: true,
-        toolPolicy: "block-destructive",
-        allowedCommands: undefined,
-        blockedCommands: ["rm -rf /", "dd if=", ":(){:|:&};:", "curl | sh", "wget | sh", "mkfs", "fdisk", "dd"]
+        toolPolicy: "allowlist-only",
+        allowedCommands: ["git status", "git log", "git diff", "ls", "cat", "head", "tail", "grep", "find", "pwd", "echo", "node -e", "npm run", "tsc"],
+        blockedCommands: ["rm -rf /", "dd if=", ":(){:|:&};:", "curl | sh", "wget | sh", "mkfs", "fdisk", "dd", "> /dev/sda", "chmod -R 777", "chown -R root", "sudo rm", "pkill -9", "kill -9 1"]
       },
       rateLimit: {
         enabled: true,
         maxRequestsPerMinute: 20
+      },
+      discord: {
+        botToken: undefined,
+        allowedGuilds: undefined,
+        allowedChannels: undefined
+      },
+      slack: {
+        appToken: undefined,
+        botToken: undefined,
+        signingSecret: undefined,
+        allowedChannels: undefined
+      },
+      webchat: {
+        enabled: true,
+        port: 18791,
+        bindAddress: "127.0.0.1"
       }
     };
   }
@@ -155,15 +214,24 @@ class ConfigManager {
   isConfigured(): boolean {
     const config = this.load();
     const provider = config.ai?.provider || "anthropic";
-    
+
+    // Check Telegram token
+    if (!config.telegram?.botToken) {
+      return false;
+    }
+
+    // Check AI provider key
     if (provider === "anthropic") {
-      return !!(config.telegram?.botToken && config.anthropic?.apiKey);
+      return !!(config.anthropic?.apiKey || config.ai?.providers?.anthropic?.apiKey);
     }
     if (provider === "kimi") {
-      return !!(config.telegram?.botToken && config.ai?.providers?.kimi?.apiKey);
+      return !!config.ai?.providers?.kimi?.apiKey;
     }
     if (provider === "minimax") {
-      return !!(config.telegram?.botToken && config.ai?.providers?.minimax?.apiKey && config.ai?.providers?.minimax?.groupId);
+      return !!(config.ai?.providers?.minimax?.apiKey && config.ai?.providers?.minimax?.groupId);
+    }
+    if (provider === "openai") {
+      return !!config.ai?.providers?.openai?.apiKey;
     }
     return false;
   }
@@ -195,19 +263,67 @@ class ConfigManager {
 
   isCommandAllowed(command: string): boolean {
     const config = this.load();
-    const policy = config.security?.toolPolicy || "block-destructive";
+    const policy = config.security?.toolPolicy || "allowlist-only";
     const blocked = config.security?.blockedCommands || [];
-    const allowed = config.security?.allowedCommands;
+    const allowed = config.security?.allowedCommands || [];
 
-    if (policy === "allowlist-only" && allowed) {
-      return allowed.some(cmd => command.includes(cmd));
+    // Normalize command for comparison
+    const normalizedCommand = command.trim().toLowerCase();
+
+    // Always check blocked commands first (defense in depth)
+    for (const blockedCmd of blocked) {
+      if (normalizedCommand.includes(blockedCmd.toLowerCase())) {
+        return false;
+      }
     }
 
-    if (policy === "block-destructive" || policy === "allow-all") {
-      return !blocked.some(cmd => command.includes(cmd));
+    // Check for obfuscation attempts (base64, encoded commands)
+    if (this.isObfuscatedCommand(command)) {
+      return false;
     }
 
+    if (policy === "allowlist-only") {
+      // For allowlist, check if command starts with or contains an allowed pattern
+      return allowed.some(allowedCmd => {
+        const normalizedAllowed = allowedCmd.toLowerCase();
+        return normalizedCommand.startsWith(normalizedAllowed) ||
+               normalizedCommand.includes(normalizedAllowed);
+      });
+    }
+
+    // For block-destructive and allow-all, command passed blocked check
     return true;
+  }
+
+  private isObfuscatedCommand(command: string): boolean {
+    const normalized = command.toLowerCase();
+
+    // Check for base64 encoded commands
+    if (normalized.includes("base64 -d") || normalized.includes("base64 --decode")) {
+      return true;
+    }
+
+    // Check for eval with encoded content
+    if (normalized.includes("eval $(") || normalized.includes("eval$(")) {
+      return true;
+    }
+
+    // Check for reverse shell patterns
+    if (normalized.includes("/dev/tcp/") || normalized.includes("nc -e") || normalized.includes("bash -i")) {
+      return true;
+    }
+
+    // Check for command substitution in dangerous contexts
+    if (normalized.includes("$(curl") || normalized.includes("$(wget") ||
+        normalized.includes("`curl") || normalized.includes("`wget")) {
+      return true;
+    }
+
+    return false;
+  }
+
+  validateEncryption(): { valid: boolean; message: string } {
+    return validateKeyFile();
   }
 }
 

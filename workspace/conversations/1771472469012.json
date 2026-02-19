@@ -1,0 +1,10 @@
+[
+  {
+    "role": "user",
+    "content": "whats my name"
+  },
+  {
+    "role": "assistant",
+    "content": "As your AI assistant, I don't have access to your personal details unless you've shared them with me during our conversation. You can tell me your name if you'd like, and I'll be happy to address you by it! How would you like to be addressed? 😊"
+  }
+]

@@ -1,0 +1,10 @@
+[
+  {
+    "role": "user",
+    "content": "hi"
+  },
+  {
+    "role": "assistant",
+    "content": "Hi there! 😄 How can I assist you today?"
+  }
+]

@@ -14,9 +14,12 @@ export class HeartbeatEngine {
   private bot: Telegraf;
   private jobs: Cron[] = [];
   private lastInteraction: Map<number, Date> = new Map();
+  private timezone: string;
 
   constructor(bot: Telegraf) {
     this.bot = bot;
+    // Use system timezone or default to UTC
+    this.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
   }
 
   start(): void {
@@ -24,7 +27,7 @@ export class HeartbeatEngine {
     const interval = config.heartbeat?.intervalMinutes || 30;
 
     const idleJob = new Cron(`*/${interval} * * * *`, {
-      timezone: "America/Los_Angeles"
+      timezone: this.timezone
     }, () => {
       this.checkIdleUsers();
     });
@@ -35,17 +38,19 @@ export class HeartbeatEngine {
 
     tasks.forEach(task => {
       try {
-        const job = new Cron(task.schedule, () => {
+        const job = new Cron(task.schedule, {
+          timezone: this.timezone
+        }, () => {
           this.runTask(task);
         });
         this.jobs.push(job);
-        console.log(`📅 Scheduled task: ${task.name} (${task.schedule})`);
+        console.log(`📅 Scheduled task: ${task.name} (${task.schedule}) [${this.timezone}]`);
       } catch (e) {
         console.warn(`Failed to schedule task ${task.name}: ${e}`);
       }
     });
 
-    console.log(`❤️ Heartbeat engine started with ${this.jobs.length} jobs`);
+    console.log(`❤️ Heartbeat engine started with ${this.jobs.length} jobs (timezone: ${this.timezone})`);
   }
 
   stop(): void {

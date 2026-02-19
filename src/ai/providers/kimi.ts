@@ -1,5 +1,7 @@
 import { configManager } from "../../config/manager.js";
 import type { AIProvider, AIMessage, AIResponse, AIModel, AITool } from "../client.js";
+import { fetchWithRetry } from "../../utils/retry.js";
+import { logger } from "../../utils/logger.js";
 
 export const kimiProvider: AIProvider = {
   name: "kimi",
@@ -12,7 +14,7 @@ export const kimiProvider: AIProvider = {
   ): Promise<AIResponse> {
     const config = configManager.load();
     const apiKey = config.ai?.providers?.kimi?.apiKey;
-    
+
     if (!apiKey) {
       throw new Error("Kimi API key not configured. Add 'ai.providers.kimi.apiKey' in config.");
     }
@@ -20,7 +22,7 @@ export const kimiProvider: AIProvider = {
     const model = (config.ai?.model as AIModel) || "kimi-k2.5";
 
     const formattedMessages: Array<{ role: string; content: string }> = [];
-    
+
     if (systemPrompt) {
       formattedMessages.push({ role: "system", content: systemPrompt });
     }
@@ -41,31 +43,41 @@ export const kimiProvider: AIProvider = {
       }
     }));
 
-    try {
-      const response = await fetch("https://api.moonshot.ai/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${apiKey}`
-        },
-        body: JSON.stringify({
-          model,
-          messages: formattedMessages,
-          tools: toolDefs,
-          temperature: 0.7,
-          max_tokens: 4096
-        })
-      });
+    // Kimi API request body
+    const requestBody: any = {
+      model,
+      messages: formattedMessages,
+      temperature: 0.7,
+      max_tokens: 4096
+    };
 
-      if (!response.ok) {
-        const error = await response.text();
-        throw new Error(`Kimi API error: ${response.status} - ${error}`);
-      }
+    // Only include tools if provided (Kimi may not support all tool features)
+    if (toolDefs && toolDefs.length > 0) {
+      requestBody.tools = toolDefs;
+    }
+
+    try {
+      const response = await fetchWithRetry(
+        "https://api.moonshot.ai/v1/chat/completions",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${apiKey}`
+          },
+          body: JSON.stringify(requestBody)
+        },
+        {
+          maxRetries: 3,
+          timeout: 120000,
+          retryableStatusCodes: [408, 429, 500, 502, 503, 504]
+        }
+      );
 
       const data = await response.json() as any;
-      
+
       const message = data.choices?.[0]?.message;
-      
+
       if (!message) {
         throw new Error("No response from Kimi API");
       }
@@ -85,6 +97,7 @@ export const kimiProvider: AIProvider = {
 
       return { content, toolCalls: toolCalls.length > 0 ? toolCalls : undefined };
     } catch (error) {
+      logger.error("Kimi API error after retries", { error: String(error) });
       if (error instanceof Error && error.message.includes("Kimi API error")) {
         throw error;
       }
