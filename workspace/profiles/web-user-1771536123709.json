@@ -1,0 +1,44 @@
+{
+  "style": {
+    "formality": 4.8,
+    "verbosity": 4.8,
+    "technicalLevel": 5,
+    "emojiUsage": 3,
+    "responseLength": "short",
+    "greetingStyle": "casual",
+    "asksQuestions": false,
+    "prefersBullets": false,
+    "avgMessageLength": 21,
+    "commonTopics": [],
+    "interactionCount": 1,
+    "lastUpdated": "2026-02-19T21:22:07.964Z"
+  },
+  "preferences": {
+    "interests": [],
+    "dislikes": [],
+    "workingStyle": {
+      "collaborative": true,
+      "independent": false,
+      "needsGuidance": false,
+      "prefersExamples": true
+    },
+    "learningStyle": {
+      "visual": false,
+      "verbal": true,
+      "handsOn": false,
+      "theoretical": false
+    },
+    "timePreferences": {
+      "concise": false,
+      "detailed": false,
+      "stepByStep": false
+    }
+  },
+  "personality": {
+    "warmth": 7,
+    "enthusiasm": 6,
+    "humor": 4,
+    "empathy": 7,
+    "adaptations": []
+  }
+}

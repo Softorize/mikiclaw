@@ -3,6 +3,34 @@
 Long-term memory for the agent.
 
 ## learning
+- timestamp: 2026-02-19T21:22:46.080Z
+- type: learning
+- content: Interaction with web-user-1771536160379: \"im looking for legal companies near me 91325 who can work and get paid only after win, the case is harrasment from credit collectors\"
+- importance: 4
+- tags: [interaction, learning, web-user-1771536160379]
+
+## tool_usage
+- timestamp: 2026-02-19T21:22:43.260Z
+- type: tool_usage
+- content: Used search: {\"query\":\"legal firms 91325 harassment credit collectors no win no fee\"}
+- importance: 2
+- tags: [tool, search]
+
+## learning
+- timestamp: 2026-02-19T21:22:07.963Z
+- type: learning
+- content: Interaction with web-user-1771536123709: \"what ca you do for me\"
+- importance: 4
+- tags: [interaction, learning, web-user-1771536123709]
+
+## learning
+- timestamp: 2026-02-19T21:21:54.933Z
+- type: learning
+- content: Interaction with web-user-1771536113838: \"hi\"
+- importance: 4
+- tags: [interaction, learning, web-user-1771536113838]
+
+## learning
 - timestamp: 2026-02-19T15:46:16.822Z
 - type: learning
 - content: Interaction with web-user-1771515972170: \"find out for me who is Zhirayr Gumruyan\"
