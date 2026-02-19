@@ -6,27 +6,90 @@ interface SearchResult {
   snippet: string;
 }
 
+// Default Serper API key for mikiclaw
+const SERPER_API_KEY = "6eff15225f04226d872258d6daac94757679efb4";
+
 export async function webSearch(query: string): Promise<string> {
   logger.info("Performing web search", { query });
   
   try {
-    const results = await searchDuckDuckGo(query);
-    
-    if (results.length === 0) {
-      return "🔍 No results found for this query. Try simplifying your search terms.";
+    // Try Serper first (Google Search API)
+    const serperResults = await searchWithSerper(query);
+    if (serperResults.length > 0) {
+      return formatResults(query, serperResults);
     }
-
-    const formattedResults = results
-      .slice(0, 5)
-      .map((result, index) => {
-        return `${index + 1}. **${result.title}**\n   ${result.snippet}\n   ${result.url}`;
-      })
-      .join("\n\n");
-
-    return `🔍 Search Results for "${query}":\n\n${formattedResults}`;
+    
+    // Fallback to DuckDuckGo
+    const ddgResults = await searchDuckDuckGo(query);
+    if (ddgResults.length > 0) {
+      return formatResults(query, ddgResults);
+    }
+    
+    return "🔍 No results found for this query. Try simplifying your search terms.";
   } catch (error) {
     logger.error("Web search failed", { error: String(error), query });
     return `🔍 Search error: ${error instanceof Error ? error.message : "Unknown error"}. The search service might be temporarily unavailable.`;
+  }
+}
+
+function formatResults(query: string, results: SearchResult[]): string {
+  const formattedResults = results
+    .slice(0, 5)
+    .map((result, index) => {
+      return `${index + 1}. **${result.title}**\n   ${result.snippet}\n   ${result.url}`;
+    })
+    .join("\n\n");
+
+  return `🔍 Search Results for "${query}":\n\n${formattedResults}`;
+}
+
+async function searchWithSerper(query: string): Promise<SearchResult[]> {
+  try {
+    const response = await fetch("https://google.serper.dev/search", {
+      method: "POST",
+      headers: {
+        "X-API-KEY": SERPER_API_KEY,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        q: query,
+        num: 10
+      })
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Serper API returned ${response.status}`);
+    }
+
+    const data = await response.json() as any;
+    
+    const results: SearchResult[] = [];
+    
+    // Extract organic search results
+    if (data.organic && Array.isArray(data.organic)) {
+      for (const item of data.organic.slice(0, 5)) {
+        results.push({
+          title: item.title || "No title",
+          url: item.link || "",
+          snippet: item.snippet || "No description available"
+        });
+      }
+    }
+    
+    // If no organic results, try other result types
+    if (results.length === 0 && data.answerBox) {
+      results.push({
+        title: data.answerBox.title || "Answer",
+        url: data.answerBox.link || "",
+        snippet: data.answerBox.snippet || data.answerBox.answer || ""
+      });
+    }
+    
+    logger.info("Serper search completed", { resultCount: results.length });
+    return results;
+  } catch (error) {
+    logger.error("Serper search failed", { error: String(error) });
+    return [];
   }
 }
 
@@ -68,37 +131,7 @@ async function searchDuckDuckGo(query: string): Promise<SearchResult[]> {
     logger.error("DuckDuckGo search failed", { error: String(error) });
   }
   
-  if (results.length === 0) {
-    return fallbackSearch(query);
-  }
-  
   return results;
-}
-
-async function fallbackSearch(query: string): Promise<SearchResult[]> {
-  try {
-    const response = await fetch(
-      `https://api.bing.microsoft.com/v7.0/search?q=${encodeURIComponent(query)}&count=5`,
-      {
-        headers: {
-          "Ocp-Apim-Subscription-Key": process.env.BING_API_KEY || ""
-        }
-      }
-    );
-    
-    if (response.ok) {
-      const data = await response.json() as any;
-      return data.webPages?.value?.map((item: any) => ({
-        title: item.name,
-        url: item.url,
-        snippet: item.snippet
-      })) || [];
-    }
-  } catch {
-    // Bing not configured or failed
-  }
-  
-  return [];
 }
 
 function cleanHtml(text: string): string {
@@ -110,32 +143,4 @@ function cleanHtml(text: string): string {
     .replace(/&#39;/g, "'")
     .replace(/&nbsp;/g, ' ')
     .trim();
-}
-
-export async function searchWithBrave(query: string, apiKey: string): Promise<string> {
-  try {
-    const response = await fetch(
-      `https://api.search.brave.com/api/suggest?q=${encodeURIComponent(query)}&count=5`,
-      {
-        headers: {
-          "Accept": "application/json",
-          "X-Subscription-Token": apiKey
-        }
-      }
-    );
-    
-    if (!response.ok) {
-      throw new Error(`Brave API returned ${response.status}`);
-    }
-
-    const data = await response.json() as any;
-    
-    const results = data.results?.map((result: any, index: number) => {
-      return `${index + 1}. **${result.title}**\n   ${result.description}\n   ${result.url}`;
-    }).join("\n\n") || "No results found";
-
-    return `🔍 Search Results:\n\n${results}`;
-  } catch (error) {
-    return `Search error: ${error instanceof Error ? error.message : "Unknown"}`;
-  }
 }
