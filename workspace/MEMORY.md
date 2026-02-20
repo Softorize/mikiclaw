@@ -3,6 +3,62 @@
 Long-term memory for the agent.
 
 ## learning
+- timestamp: 2026-02-20T06:56:42.753Z
+- type: learning
+- content: Interaction with web-user-1771570601621: \"ok\"
+- importance: 4
+- tags: [interaction, learning, web-user-1771570601621]
+
+## learning
+- timestamp: 2026-02-20T06:56:30.941Z
+- type: learning
+- content: Interaction with web-user-1771570587307: \"search again in linkedin\"
+- importance: 4
+- tags: [interaction, learning, web-user-1771570587307]
+
+## tool_usage
+- timestamp: 2026-02-20T06:56:29.247Z
+- type: tool_usage
+- content: Used search: {\"query\":\"search in linkedin\"}
+- importance: 2
+- tags: [tool, search]
+
+## learning
+- timestamp: 2026-02-20T06:56:14.644Z
+- type: learning
+- content: Interaction with web-user-1771570571490: \"you search for me in internet\"
+- importance: 4
+- tags: [interaction, learning, web-user-1771570571490]
+
+## tool_usage
+- timestamp: 2026-02-20T06:56:13.445Z
+- type: tool_usage
+- content: Used search: {\"query\":\"Zhirayr\"}
+- importance: 2
+- tags: [tool, search]
+
+## learning
+- timestamp: 2026-02-20T06:48:34.225Z
+- type: learning
+- content: Interaction with web-user-1771570109918: \"do internet search find out who is ZHirayr Gumruyan\"
+- importance: 4
+- tags: [interaction, learning, web-user-1771570109918]
+
+## tool_usage
+- timestamp: 2026-02-20T06:48:32.530Z
+- type: tool_usage
+- content: Used search: {\"query\":\"Zhirayr Gumruyan\"}
+- importance: 2
+- tags: [tool, search]
+
+## learning
+- timestamp: 2026-02-20T06:48:23.893Z
+- type: learning
+- content: Interaction with web-user-1771570102267: \"hi\"
+- importance: 4
+- tags: [interaction, learning, web-user-1771570102267]
+
+## learning
 - timestamp: 2026-02-19T21:22:46.080Z
 - type: learning
 - content: Interaction with web-user-1771536160379: \"im looking for legal companies near me 91325 who can work and get paid only after win, the case is harrasment from credit collectors\"

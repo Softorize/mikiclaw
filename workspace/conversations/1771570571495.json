@@ -1,0 +1,10 @@
+[
+  {
+    "role": "user",
+    "content": "you search for me in internet"
+  },
+  {
+    "role": "assistant",
+    "content": "It seems there were no results found for \"Zhirayr\" on the internet. How about we try a broader search or look for information on a specific topic instead?"
+  }
+]

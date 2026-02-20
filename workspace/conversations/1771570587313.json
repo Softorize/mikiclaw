@@ -1,0 +1,10 @@
+[
+  {
+    "role": "user",
+    "content": "search again in linkedin"
+  },
+  {
+    "role": "assistant",
+    "content": "I'm sorry, it seems there was an issue with retrieving the search results. Let me try again to find the latest information from LinkedIn for you. I'll make sure to use the correct query to get the desired results."
+  }
+]

@@ -13,7 +13,8 @@ export type AIModel =
   | "gpt-4o-mini"
   | "gpt-4-turbo"
   | "gpt-4"
-  | "gpt-3.5-turbo";
+  | "gpt-3.5-turbo"
+  | "local-model";
 
 export interface AIMessage {
   role: "user" | "assistant" | "system";

@@ -15,7 +15,7 @@ const ConfigSchema = z.object({
     model: z.string().default("claude-sonnet-4-20250514")
   }).optional(),
   ai: z.object({
-    provider: z.enum(["anthropic", "kimi", "minimax", "openai"]).default("anthropic"),
+    provider: z.enum(["anthropic", "kimi", "minimax", "openai", "local"]).default("anthropic"),
     model: z.string().optional(),
     providers: z.object({
       anthropic: z.object({
@@ -30,6 +30,10 @@ const ConfigSchema = z.object({
       }).optional(),
       openai: z.object({
         apiKey: z.string().optional()
+      }).optional(),
+      local: z.object({
+        baseUrl: z.string().default("http://localhost:8000/v1"),
+        apiKey: z.string().default("not-needed")
       }).optional()
     }).optional()
   }).optional(),
@@ -160,7 +164,8 @@ class ConfigManager {
           anthropic: { apiKey: undefined },
           kimi: { apiKey: undefined },
           minimax: { apiKey: undefined, groupId: undefined },
-          openai: { apiKey: undefined }
+          openai: { apiKey: undefined },
+          local: { baseUrl: "http://192.168.1.124:8888/v1", apiKey: "not-needed" }
         }
       },
       session: {
@@ -232,6 +237,10 @@ class ConfigManager {
     }
     if (provider === "openai") {
       return !!config.ai?.providers?.openai?.apiKey;
+    }
+    if (provider === "local") {
+      // Local provider doesn't need an API key, just a valid baseUrl
+      return true;
     }
     return false;
   }

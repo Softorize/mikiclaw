@@ -11,6 +11,7 @@ import { anthropicProvider } from "../ai/providers/anthropic.js";
 import { kimiProvider } from "../ai/providers/kimi.js";
 import { minimaxProvider } from "../ai/providers/minimax.js";
 import { openaiProvider } from "../ai/providers/openai.js";
+import { localProvider } from "../ai/providers/local.js";
 import { sessionManager } from "../session/manager.js";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
@@ -20,6 +21,7 @@ aiClient.registerProvider("anthropic", anthropicProvider);
 aiClient.registerProvider("kimi", kimiProvider);
 aiClient.registerProvider("minimax", minimaxProvider);
 aiClient.registerProvider("openai", openaiProvider);
+aiClient.registerProvider("local", localProvider);
 
 interface MessageContext {
   message: string;
