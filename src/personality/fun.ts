@@ -29,6 +29,19 @@ const TECH_JOKES = [
   "A programmer's wife tells him: 'Go to the store and get a loaf of bread. If they have eggs, get a dozen.' He comes home with 12 loaves of bread."
 ];
 
+const PUNS = [
+  "I used to be a banker, but I lost interest.",
+  "I'm reading a book about anti-gravity. It's impossible to put down!",
+  "Time flies like an arrow; fruit flies like a banana.",
+  "I used to hate facial hair, but then it grew on me.",
+  "I'm on a seafood diet. I see food and I eat it!",
+  "What do you call a bear with no teeth? A gummy bear!",
+  "How does a penguin build its house? Igloos it together!",
+  "Why don't eggs tell jokes? They'd crack each other up!",
+  "Why did the scarecrow win an award? Because he was outstanding in his field!",
+  "I'm great at multitasking. I can waste time, be unproductive, and procrastinate all at once!"
+];
+
 const FUN_FACTS = [
   "Octopuses have three hearts and blue blood!",
   "Honey never spoils - archaeologists have found 3000-year-old honey that's still edible!",
@@ -119,6 +132,10 @@ export function getRandomTechJoke(): string {
   return TECH_JOKES[Math.floor(Math.random() * TECH_JOKES.length)];
 }
 
+export function getRandomPun(): string {
+  return PUNS[Math.floor(Math.random() * PUNS.length)];
+}
+
 export function getRandomFunFact(): string {
   return FUN_FACTS[Math.floor(Math.random() * FUN_FACTS.length)];
 }
@@ -165,4 +182,58 @@ export function getRandomResponse(type: "joke" | "fact"): string {
     return getJokeResponse();
   }
   return getRandomFunFact();
+}
+
+/**
+ * Adaptive joke selection based on learned user preferences
+ * @param preference - user preference: "dad" | "tech" | "puns" | "mixed" | null
+ * @param fallback - fallback type if preference is null or "mixed"
+ */
+export function getAdaptiveJoke(
+  preference: "dad" | "tech" | "puns" | "mixed" | null,
+  fallback: "dad" | "tech" = "dad"
+): string {
+  // If no preference or mixed, use fallback with some randomness
+  if (!preference || preference === "mixed") {
+    const rand = Math.random();
+    if (rand < 0.7) {
+      return fallback === "dad" ? getRandomDadJoke() : getRandomTechJoke();
+    } else if (rand < 0.85) {
+      return getRandomPun();
+    }
+    return fallback === "dad" ? getRandomDadJoke() : getRandomTechJoke();
+  }
+
+  // Use preferred type
+  switch (preference) {
+    case "dad":
+      return getRandomDadJoke();
+    case "tech":
+      return getRandomTechJoke();
+    case "puns":
+      return getRandomPun();
+    default:
+      return getRandomDadJoke();
+  }
+}
+
+/**
+ * Detect if user reacted positively or negatively to a joke
+ * Returns "positive" | "negative" | null based on message content
+ */
+export function detectJokeReaction(message: string): "positive" | "negative" | null {
+  const lower = message.toLowerCase();
+
+  // Positive indicators
+  const positivePatterns = ["lol", "lmao", "haha", "😂", "🤣", "😄", "good one", "nice", "haha", "funny", "lolz", "💀"];
+  const positiveCount = positivePatterns.filter(p => lower.includes(p)).length;
+  if (positiveCount >= 1) return "positive";
+
+  // Negative indicators
+  const negativePatterns = ["ugh", "groan", "cringe", "no", "stop", "boring", "terrible", "bad", "painful", "😒", "🙄"];
+  const negativeCount = negativePatterns.filter(p => lower.includes(p)).length;
+  if (negativeCount >= 1) return "negative";
+
+  // If user sends a new message without reaction, treat as neutral
+  return null;
 }

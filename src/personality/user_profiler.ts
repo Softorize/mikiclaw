@@ -60,6 +60,14 @@ export interface UserPreferences {
     detailed: boolean;
     stepByStep: boolean;
   };
+  // Humor preferences (adaptive)
+  humorPreferences: {
+    dadJokes: { likes: number; dislikes: number };
+    techJokes: { likes: number; dislikes: number };
+    puns: { likes: number; dislikes: number };
+    funFacts: { likes: number; dislikes: number };
+    preferredType: "dad" | "tech" | "puns" | "mixed" | null;
+  };
 }
 
 /**
@@ -117,6 +125,13 @@ const DEFAULT_PREFERENCES: UserPreferences = {
     concise: false,
     detailed: false,
     stepByStep: false
+  },
+  humorPreferences: {
+    dadJokes: { likes: 0, dislikes: 0 },
+    techJokes: { likes: 0, dislikes: 0 },
+    puns: { likes: 0, dislikes: 0 },
+    funFacts: { likes: 0, dislikes: 0 },
+    preferredType: null
   }
 };
 
@@ -443,6 +458,63 @@ class UserProfiler {
       });
     }
     return interests.sort((a, b) => b.level - a.level).slice(0, 20);
+  }
+
+  /**
+   * Track user's reaction to a joke or fun fact
+   * @param type - "dad" | "tech" | "puns" | "funFact"
+   * @param reaction - "positive" (laugh, haha, lol) | "negative" (ugh, groan, boring)
+   */
+  trackHumorReaction(type: "dad" | "tech" | "puns" | "funFact", reaction: "positive" | "negative"): void {
+    const profile = this.loadProfile();
+
+    let humorPref: UserPreferences["humorPreferences"][keyof UserPreferences["humorPreferences"]];
+    let key: "dadJokes" | "techJokes" | "puns" | "funFacts";
+
+    switch (type) {
+      case "dad": key = "dadJokes"; break;
+      case "tech": key = "techJokes"; break;
+      case "puns": key = "puns"; break;
+      case "funFact": key = "funFacts"; break;
+    }
+
+    humorPref = profile.preferences.humorPreferences[key];
+
+    if (reaction === "positive") {
+      humorPref.likes++;
+    } else {
+      humorPref.dislikes++;
+    }
+
+    // Calculate preferred type based on ratio
+    const types = ["dadJokes", "techJokes", "puns", "funFacts"] as const;
+    let bestType: "dad" | "tech" | "puns" | "mixed" | null = null;
+    let bestRatio = -1;
+
+    for (const t of types) {
+      const pref = profile.preferences.humorPreferences[t];
+      const total = pref.likes + pref.dislikes;
+      if (total >= 3) { // Need at least 3 interactions to establish preference
+        const ratio = pref.likes / total;
+        if (ratio > bestRatio && ratio > 0.5) {
+          bestRatio = ratio;
+          if (t === "dadJokes") bestType = "dad";
+          else if (t === "techJokes") bestType = "tech";
+          else if (t === "puns") bestType = "puns";
+        }
+      }
+    }
+
+    profile.preferences.humorPreferences.preferredType = bestType;
+    this.saveProfile(profile);
+  }
+
+  /**
+   * Get learned humor preference for joke selection
+   */
+  getHumorPreference(): "dad" | "tech" | "puns" | "mixed" | null {
+    const profile = this.loadProfile();
+    return profile.preferences.humorPreferences.preferredType;
   }
 }
 
