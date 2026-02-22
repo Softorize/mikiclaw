@@ -178,6 +178,8 @@ class MemorySystem {
       this.consolidateMemories(entries);
     }
 
+    this.enforcePerUserCap(entries, fullEntry.userId);
+
     this.save(entries);
     
     // Update entity index
@@ -388,7 +390,8 @@ class MemorySystem {
     options: { userId?: string; topK?: number; minSimilarity?: number } = {}
   ): Promise<MemoryEntry[]> {
     const entries = this.load();
-    const { userId, topK = 5, minSimilarity = 0.75 } = options;
+    const memoryConfig = configManager.getMemoryConfig();
+    const { userId, topK = 5, minSimilarity = memoryConfig.semanticMinSimilarity || 0.75 } = options;
 
     try {
       const similar = await embeddingService.findSimilar(query, {
@@ -413,6 +416,7 @@ class MemorySystem {
    */
   async getConnectedContext(userMessage: string, userId?: string): Promise<string> {
     const entries = this.load();
+    const memoryConfig = configManager.getMemoryConfig();
     
     // 1. Direct keyword search
     const directMatches = this.search(userMessage, userId);
@@ -430,6 +434,9 @@ class MemorySystem {
     
     // 4. Get related memories (2-hop connections)
     const allMatches = new Map<string, MemoryEntry>();
+    const directIds = new Set<string>(directMatches.map((entry) => entry.id));
+    const entityIds = new Set<string>(entityMatches.map((entry) => entry.id));
+    const semanticIds = new Set<string>(semanticMatches.map((entry) => entry.id));
     
     for (const entry of [...directMatches.slice(0, 3), ...entityMatches.slice(0, 3), ...semanticMatches.slice(0, 3)]) {
       if (!entry) continue;
@@ -453,17 +460,23 @@ class MemorySystem {
     }
     
     // Sort by importance and recency
-    contextEntries.sort((a, b) => {
-      const importanceDiff = b.importance - a.importance;
-      if (importanceDiff !== 0) return importanceDiff;
-      return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
-    });
+    const now = Date.now();
+    const score = (entry: MemoryEntry): number => {
+      const ageDays = Math.max(0, (now - new Date(entry.timestamp).getTime()) / (1000 * 60 * 60 * 24));
+      const recencyBoost = Math.max(0, 30 - ageDays);
+      const importanceScore = entry.importance * 4;
+      const directBoost = directIds.has(entry.id) ? 6 : 0;
+      const entityBoost = entityIds.has(entry.id) ? 4 : 0;
+      const semanticBoost = semanticIds.has(entry.id) ? 5 : 0;
+      return importanceScore + recencyBoost + directBoost + entityBoost + semanticBoost;
+    };
+    contextEntries.sort((a, b) => score(b) - score(a));
     
     if (contextEntries.length === 0) return "";
 
     // Format with connection indicators
     return contextEntries
-      .slice(0, 8)
+      .slice(0, memoryConfig.maxConnectedContextEntries || 8)
       .map(e => {
         let line = `- ${e.content}`;
         if (e.entities && e.entities.length > 0) {
@@ -836,6 +849,30 @@ class MemorySystem {
 
   trackInteraction(chatId: number): void {
     this.lastInteractionTime = Date.now();
+  }
+
+  private enforcePerUserCap(entries: MemoryEntry[], userId?: string): void {
+    if (!userId) {
+      return;
+    }
+
+    const config = configManager.getMemoryConfig();
+    const cap = Math.max(50, config.perUserEntryCap || 500);
+    const userEntries = entries.filter((entry) => entry.userId === userId);
+    if (userEntries.length <= cap) {
+      return;
+    }
+
+    const ranked = [...userEntries].sort((a, b) => {
+      const scoreA = a.importance * 100000 + new Date(a.timestamp).getTime();
+      const scoreB = b.importance * 100000 + new Date(b.timestamp).getTime();
+      return scoreB - scoreA;
+    });
+
+    const keepIds = new Set(ranked.slice(0, cap).map((entry) => entry.id));
+    const retained = entries.filter((entry) => entry.userId !== userId || keepIds.has(entry.id));
+    entries.length = 0;
+    entries.push(...retained);
   }
 
   getIdleTime(): number {

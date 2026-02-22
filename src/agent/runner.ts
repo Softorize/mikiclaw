@@ -23,6 +23,7 @@ import { join, dirname } from "node:path";
 import { execa } from "execa";
 import { sanitizePath, validateCommand, validatePattern } from "../utils/validation.js";
 import { accessControl } from "../security/access_control.js";
+import { observabilityStore } from "../observability/metrics.js";
 
 aiClient.registerProvider("anthropic", anthropicProvider);
 aiClient.registerProvider("kimi", kimiProvider);
@@ -35,6 +36,7 @@ interface MessageContext {
   userId: string;
   username?: string;
   chatId: number;
+  channel?: string;
 }
 
 function extractLikelyUrl(message: string): string | null {
@@ -155,6 +157,71 @@ function buildRecoveryToolCalls(message: string): Array<{ name: string; input: R
   ];
 }
 
+function isLikelySubmitSelector(selector: string): boolean {
+  return /(submit|send|confirm|save|delete|remove|checkout|purchase|pay)/i.test(selector);
+}
+
+function requiresToolApproval(toolName: string, input: Record<string, unknown>): boolean {
+  if (toolName === "bash" || toolName === "write_file" || toolName === "applescript") {
+    return true;
+  }
+
+  if (toolName === "browser_fill") {
+    return true;
+  }
+
+  if (toolName === "browser_click") {
+    const selector = String(input.selector || "");
+    return isLikelySubmitSelector(selector);
+  }
+
+  return false;
+}
+
+function summarizeRiskyToolAction(toolName: string, input: Record<string, unknown>): string {
+  if (toolName === "bash") {
+    const command = String(input.command || "").slice(0, 120);
+    return `shell command: ${command}`;
+  }
+  if (toolName === "write_file") {
+    return `write file: ${String(input.path || "").slice(0, 120)}`;
+  }
+  if (toolName === "browser_fill") {
+    return "fill browser form fields";
+  }
+  if (toolName === "browser_click") {
+    return `click potentially destructive control: ${String(input.selector || "").slice(0, 120)}`;
+  }
+  if (toolName === "applescript") {
+    return "run AppleScript machine action";
+  }
+  return `${toolName} action`;
+}
+
+function estimateTokensFromText(text: string): number {
+  return Math.max(1, Math.ceil(text.length / 4));
+}
+
+function estimateCostUsd(provider: string | undefined, inputTokens: number, outputTokens: number): number {
+  const ratesPer1K: Record<string, { input: number; output: number }> = {
+    anthropic: { input: 0.003, output: 0.015 },
+    openai: { input: 0.0025, output: 0.01 },
+    kimi: { input: 0.0015, output: 0.006 },
+    minimax: { input: 0.001, output: 0.004 },
+    local: { input: 0, output: 0 }
+  };
+  const rate = provider ? ratesPer1K[provider] : undefined;
+  if (!rate) {
+    return 0;
+  }
+  return (inputTokens / 1000) * rate.input + (outputTokens / 1000) * rate.output;
+}
+
+function toolCallSucceeded(result: string): boolean {
+  const normalized = result.trim().toLowerCase();
+  return !(normalized.startsWith("error:") || normalized.startsWith("⛔") || normalized.includes("failed"));
+}
+
 /**
  * Build a dynamic system prompt that integrates:
  * - SOUL.md personality
@@ -255,22 +322,37 @@ ${voiceGuidelines}
 }
 
 export async function runAgent(ctx: MessageContext): Promise<string> {
+  const requestId = observabilityStore.startRequest(ctx.userId, ctx.chatId, ctx.channel || "telegram");
+  let observedProvider: string | undefined = undefined;
+  let estimatedInputTokens = 0;
+  const finishRequest = (text: string, success: boolean): string => {
+    const outputTokens = estimateTokensFromText(text);
+    observabilityStore.finishRequest(requestId, {
+      provider: observedProvider,
+      success,
+      estimatedInputTokens,
+      estimatedOutputTokens: outputTokens,
+      estimatedCostUsd: estimateCostUsd(observedProvider, estimatedInputTokens, outputTokens)
+    });
+    return text;
+  };
+
   if (!rateLimiter.isAllowed(ctx.userId)) {
     logger.warn("Rate limit exceeded", { userId: ctx.userId });
-    return "⏳ Too many requests. Please wait a moment before trying again.";
+    return finishRequest("⏳ Too many requests. Please wait a moment before trying again.", false);
   }
 
   if (!configManager.isConfigured()) {
-    return "⚠️ AI not configured. Run `npm run setup`.";
+    return finishRequest("⚠️ AI not configured. Run `npm run setup`.", false);
   }
 
-  const session = sessionManager.getOrCreateSession(ctx.chatId, ctx.userId, ctx.username);
+  const session = sessionManager.getOrCreateSession(ctx.chatId, ctx.userId, ctx.username, ctx.channel || "telegram");
   
   const loopCheck = loopDetector.detect(ctx.chatId);
   if (loopCheck.shouldStop) {
     logger.warn("Loop detected, stopping", { chatId: ctx.chatId, reason: loopCheck.reason });
     loopDetector.clearHistory(ctx.chatId);
-    return `⛔ Detected a loop and stopped: ${loopCheck.reason}. Let's try something different!`;
+    return finishRequest(`⛔ Detected a loop and stopped: ${loopCheck.reason}. Let's try something different!`, false);
   }
   if (loopCheck.warning) {
     logger.warn("Loop warning", { chatId: ctx.chatId, warning: loopCheck.warning });
@@ -289,6 +371,7 @@ export async function runAgent(ctx: MessageContext): Promise<string> {
     ...sessionContext.filter((msg) => !!msg.content && msg.content.trim().length > 0),
     { role: "user", content: ctx.message }
   ];
+  estimatedInputTokens = estimateTokensFromText(systemPrompt) + messages.reduce((total, msg) => total + estimateTokensFromText(msg.content), 0);
 
   let response;
   const provider = configManager.getAIProvider();
@@ -296,10 +379,12 @@ export async function runAgent(ctx: MessageContext): Promise<string> {
   try {
     logger.info(`Calling ${provider} API`, { userId: ctx.userId, messageLength: ctx.message.length });
     response = await aiClient.createCompletion(messages, tools, systemPrompt);
+    observedProvider = response.provider || provider;
     logger.info("Received response from AI", { userId: ctx.userId, hasContent: !!response.content });
   } catch (error) {
     logger.error("AI API error", { error: String(error), userId: ctx.userId, provider });
-    return `❌ API Error (${provider}): ${error instanceof Error ? error.message : "Unknown"}`;
+    observedProvider = provider;
+    return finishRequest(`❌ API Error (${provider}): ${error instanceof Error ? error.message : "Unknown"}`, false);
   }
 
   let finalText = response.content || "";
@@ -374,6 +459,8 @@ export async function runAgent(ctx: MessageContext): Promise<string> {
   while (pendingToolCalls.length > 0 && toolRound < maxToolRounds) {
     toolRound += 1;
     const batchContainsBrowserContent = pendingToolCalls.some((call) => call.name === "browser_content");
+    let approvalBlockedThisRound = false;
+    let executedToolThisRound = false;
     logger.info("Processing tool round", {
       userId: ctx.userId,
       chatId: ctx.chatId,
@@ -394,10 +481,36 @@ export async function runAgent(ctx: MessageContext): Promise<string> {
         continue;
       }
 
-      logger.info("Executing tool", { tool: toolName, userId: ctx.userId, chatId: ctx.chatId });
+      if (requiresToolApproval(toolName, toolInput) && ctx.userId && ctx.chatId) {
+        const approved = accessControl.consumeApprovedToolAction(ctx.userId, ctx.chatId, toolName, toolInput);
+        if (!approved) {
+          const request = accessControl.requestToolApproval(
+            ctx.userId,
+            ctx.chatId,
+            toolName,
+            toolInput,
+            summarizeRiskyToolAction(toolName, toolInput)
+          );
+          approvalBlockedThisRound = true;
+          const approvalMessage = `⚠️ Approval required for risky action (${toolName}).\nRequest ID: \`${request.id}\`\nSummary: ${request.summary}\nApprove with \`/approve ${request.id}\` or deny with \`/deny ${request.id}\`.`;
+          finalText += `${finalText ? "\n\n" : ""}${approvalMessage}`;
+          toolConversation.push({ role: "user", content: `Tool approval required (${toolName}): ${request.summary}. Request ID: ${request.id}` });
+          logger.info("Tool execution paused pending approval", {
+            userId: ctx.userId,
+            chatId: ctx.chatId,
+            toolName,
+            requestId: request.id
+          });
+          continue;
+        }
+      }
 
+      logger.info("Executing tool", { tool: toolName, userId: ctx.userId, chatId: ctx.chatId });
+      const toolStartedAt = Date.now();
       const result = await executeTool(toolName, toolInput, ctx.chatId, ctx.userId);
+      executedToolThisRound = true;
       latestToolResult = result;
+      observabilityStore.recordToolCall(toolName, toolCallSucceeded(result), Date.now() - toolStartedAt);
 
       loopDetector.recordCall(ctx.chatId, toolName, toolInput, result.length);
       memorySystem.recordToolUsage(toolName, JSON.stringify(toolInput));
@@ -410,8 +523,10 @@ export async function runAgent(ctx: MessageContext): Promise<string> {
             userId: ctx.userId,
             chatId: ctx.chatId
           });
+          const autoToolStartedAt = Date.now();
           const autoContent = await executeTool("browser_content", { maxChars: 6000 }, ctx.chatId, ctx.userId);
           latestToolResult = autoContent;
+          observabilityStore.recordToolCall("browser_content", toolCallSucceeded(autoContent), Date.now() - autoToolStartedAt);
 
           loopDetector.recordCall(ctx.chatId, "browser_content", { maxChars: 6000 }, autoContent.length);
           memorySystem.recordToolUsage("browser_content", JSON.stringify({ maxChars: 6000 }));
@@ -429,8 +544,10 @@ export async function runAgent(ctx: MessageContext): Promise<string> {
               chatId: ctx.chatId,
               fallbackQuery
             });
+            const fallbackSearchStartedAt = Date.now();
             const fallbackSearch = await executeTool("search", { query: fallbackQuery }, ctx.chatId, ctx.userId);
             latestToolResult = fallbackSearch;
+            observabilityStore.recordToolCall("search", toolCallSucceeded(fallbackSearch), Date.now() - fallbackSearchStartedAt);
             loopDetector.recordCall(ctx.chatId, "search", { query: fallbackQuery }, fallbackSearch.length);
             memorySystem.recordToolUsage("search", JSON.stringify({ query: fallbackQuery }));
             toolConversation.push({ role: "user", content: `Tool result (search):\n${fallbackSearch}` });
@@ -439,8 +556,14 @@ export async function runAgent(ctx: MessageContext): Promise<string> {
       }
     }
 
+    if (approvalBlockedThisRound && !executedToolThisRound) {
+      pendingToolCalls = [];
+      break;
+    }
+
     try {
       const followUp = await aiClient.createCompletion(toolConversation, tools, systemPrompt);
+      observedProvider = followUp.provider || observedProvider;
       const followUpContent = followUp.content && followUp.content.trim().length > 0
         ? followUp.content
         : "";
@@ -558,7 +681,7 @@ export async function runAgent(ctx: MessageContext): Promise<string> {
     sentiment: emotionalState.getCurrent(ctx.userId).valence
   });
 
-  return finalText;
+  return finishRequest(finalText, true);
 }
 
 function resolveWorkspacePath(pathInput: string): { ok: true; absolutePath: string; relativePath: string } | { ok: false; error: string } {

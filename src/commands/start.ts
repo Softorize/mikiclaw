@@ -9,6 +9,7 @@ import { sessionManager } from "../session/manager.js";
 import { webhookServer } from "../webhooks/server.js";
 import { accessControl } from "../security/access_control.js";
 import { getRandomDadJoke, getRandomTechJoke, getRandomFunFact } from "../personality/fun.js";
+import { observabilityStore } from "../observability/metrics.js";
 
 export async function startBot() {
   logger.info("Starting mikiclaw");
@@ -68,12 +69,16 @@ export async function startBot() {
 /status - Check system status
 /skills - List installed skills
 /health - Health check
+/metrics - Runtime metrics snapshot
 /session - Show session info
 /joke - Get a random joke
 /fact - Get a random fun fact
 /grant_access - Allow AppleScript machine control in this chat
 /revoke_access - Disable AppleScript machine control
 /access_status - Show current machine-control permission
+/approvals - Show pending risky actions
+/approve [id] - Approve latest/specific risky action
+/deny [id] - Deny latest/specific risky action
 
 *Just send me a message and I'll help!*
 `, { parse_mode: "Markdown" });
@@ -128,7 +133,7 @@ Uptime: ${health.uptime}s
 
   bot.command("session", async (ctx) => {
     const sessions = sessionManager.listSessions();
-    const session = sessionManager.getOrCreateSession(ctx.chat?.id || 0, String(ctx.from?.id), ctx.from?.username);
+    const session = sessionManager.getOrCreateSession(ctx.chat?.id || 0, String(ctx.from?.id), ctx.from?.username, "telegram");
     
     ctx.reply(`*Session Info*
 
@@ -139,6 +144,21 @@ Last Active: ${new Date(session.lastActive).toLocaleString()}
 
 *All Sessions:*
 ${sessions.slice(0, 5).map(s => `- ${s.id}: ${s.messageCount} messages`).join("\n")}
+`, { parse_mode: "Markdown" });
+  });
+
+  bot.command("metrics", async (ctx) => {
+    const snapshot = observabilityStore.getSnapshot();
+    const totals = snapshot.totals;
+    await ctx.reply(`*Runtime Metrics*
+
+- Uptime: ${snapshot.uptimeSeconds}s
+- Active requests: ${snapshot.activeRequests}
+- Requests total: ${totals.requests}
+- Failures: ${totals.failures}
+- Est. input tokens: ${totals.estimatedInputTokens}
+- Est. output tokens: ${totals.estimatedOutputTokens}
+- Est. cost: $${totals.estimatedCostUsd}
 `, { parse_mode: "Markdown" });
   });
 
@@ -193,6 +213,68 @@ ${sessions.slice(0, 5).map(s => `- ${s.id}: ${s.messageCount} messages`).join("\
     }
 
     await ctx.reply(`✅ Machine control is granted.\nGranted at: ${new Date(grantedAt).toLocaleString()}`);
+  });
+
+  bot.command("approvals", async (ctx) => {
+    const chatId = ctx.chat?.id;
+    const userId = ctx.from?.id ? String(ctx.from.id) : "";
+    if (!chatId || !userId) {
+      await ctx.reply("❌ Could not read approvals: missing chat/user context.");
+      return;
+    }
+
+    const pending = accessControl.listPendingToolApprovals(userId, chatId);
+    if (pending.length === 0) {
+      await ctx.reply("✅ No pending risky actions.");
+      return;
+    }
+
+    const lines = pending.slice(0, 10).map((request) =>
+      `- \`${request.id}\` | ${request.toolName} | ${request.summary}`
+    );
+
+    await ctx.reply(
+      `⏳ *Pending Approvals*\n\n${lines.join("\n")}\n\nUse \`/approve <id>\` or \`/deny <id>\`.`,
+      { parse_mode: "Markdown" }
+    );
+  });
+
+  bot.command("approve", async (ctx) => {
+    const chatId = ctx.chat?.id;
+    const userId = ctx.from?.id ? String(ctx.from.id) : "";
+    if (!chatId || !userId) {
+      await ctx.reply("❌ Could not approve action: missing chat/user context.");
+      return;
+    }
+
+    const text = ctx.message && "text" in ctx.message ? ctx.message.text : "";
+    const approvalId = text.split(/\s+/)[1];
+    const approved = accessControl.approveToolApproval(userId, chatId, approvalId);
+    if (!approved) {
+      await ctx.reply("⚠️ No matching pending approval found.");
+      return;
+    }
+
+    await ctx.reply(`✅ Approved \`${approved.id}\` for ${approved.toolName}.`, { parse_mode: "Markdown" });
+  });
+
+  bot.command("deny", async (ctx) => {
+    const chatId = ctx.chat?.id;
+    const userId = ctx.from?.id ? String(ctx.from.id) : "";
+    if (!chatId || !userId) {
+      await ctx.reply("❌ Could not deny action: missing chat/user context.");
+      return;
+    }
+
+    const text = ctx.message && "text" in ctx.message ? ctx.message.text : "";
+    const approvalId = text.split(/\s+/)[1];
+    const denied = accessControl.denyToolApproval(userId, chatId, approvalId);
+    if (!denied) {
+      await ctx.reply("⚠️ No matching pending approval found.");
+      return;
+    }
+
+    await ctx.reply(`🛑 Denied \`${denied.id}\` for ${denied.toolName}.`, { parse_mode: "Markdown" });
   });
 
   bot.on("voice", voiceHandler);

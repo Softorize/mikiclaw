@@ -65,6 +65,7 @@ Message your Telegram bot to get started!
 
 - [Features](#-features)
 - [Quick Start](#-quick-start)
+- [Documentation](#-documentation)
 - [Configuration](#-configuration)
 - [Security](#-security)
 - [Commands](#-commands)
@@ -77,6 +78,17 @@ Message your Telegram bot to get started!
 
 ---
 
+## 📚 Documentation
+
+- [Architecture Guide](docs/ARCHITECTURE.md) - components, request lifecycle, and extension points
+- [Automation Workflows](docs/AUTOMATION_WORKFLOWS.md) - webhook/heartbeat triggers, conditions, actions, and signed request examples
+- [Operations & Observability](docs/OPERATIONS_AND_OBSERVABILITY.md) - health, metrics, logging, approvals, and runbooks
+- [Deployment Guide](docs/DEPLOYMENT.md)
+- [Troubleshooting Guide](docs/TROUBLESHOOTING.md)
+- [Memory & Learning](docs/MEMORY_AND_LEARNING.md)
+
+---
+
 ## ✨ Features
 
 ### Core Capabilities
@@ -84,11 +96,15 @@ Message your Telegram bot to get started!
 | Feature | Description |
 |---------|-------------|
 | **🤖 Multi-Channel** | Telegram, Discord, Slack, WebChat |
-| **🧠 Multi-Model AI** | Support for Anthropic, Kimi, and MiniMax |
+| **🧠 Multi-Model AI** | Anthropic, OpenAI, Kimi, MiniMax, and local providers |
+| **🛟 Router + Failover** | Strategy-based routing with automatic provider fallback |
 | **🕸️ Gateway** | WebSocket control plane for all channels |
 | **📦 ClawHub Skills** | Extend capabilities with community skills |
 | **💫 SOUL.md Personality** | Define your assistant's personality |
 | **❤️ Heartbeat** | Scheduled tasks and check-ins |
+| **⚙️ Workflows** | Trigger -> condition -> action automation engine |
+| **✅ Approval Gate** | Risky actions require explicit in-chat approval |
+| **📈 Observability** | Runtime metrics, provider/tool stats, and health endpoints |
 | **🔒 Self-Hosted** | Your data stays on your machine |
 | **🌐 Web Interface** | Built-in web chat UI |
 | **🤖 Browser Automation** | Headless browser control |
@@ -99,8 +115,10 @@ Message your Telegram bot to get started!
 | Provider | Models | Status |
 |----------|--------|--------|
 | **Anthropic** | claude-sonnet-4, claude-3.5-sonnet, claude-3-opus | ✅ Recommended |
+| **OpenAI** | gpt-4o, gpt-4o-mini, gpt-4-turbo, gpt-4, gpt-3.5-turbo | ✅ Supported |
 | **Kimi** | kimi-k2.5, kimi-k2-thinking | ✅ Supported |
 | **MiniMax** | M2.5, M2.5-highspeed, M2.1 | ✅ Supported |
+| **Local** | OpenAI-compatible local endpoint | ✅ Supported |
 
 ### Built-in Tools
 
@@ -117,6 +135,7 @@ Message your Telegram bot to get started!
 | `git` | Git version control | ✅ Command validation |
 | `get_system_info` | System information | ✅ Safe |
 | `browser_*` | Browser automation | ✅ Session-scoped |
+| `gac_*` | Google Analytics account/property listing | ✅ Requires local access grant |
 
 ### Browser Automation
 
@@ -136,21 +155,23 @@ Control a headless browser to interact with websites:
 
 ### Chat Commands
 
-Use these commands in any channel:
+Use these commands in Telegram (default channel adapter):
 
 | Command | Description |
 |---------|-------------|
 | `/status` | Show session and system status |
-| `/new` or `/reset` | Clear conversation history |
-| `/compact` | Keep only last 10 messages |
-| `/verbose on|off` | Toggle detailed output |
-| `/usage` | Show token usage estimate |
 | `/help` | Show available commands |
-| `/sessions` | List your active sessions |
-| `/browser <action>` | Browser control commands |
+| `/health` | Show health server summary |
+| `/session` | Show current session details |
+| `/metrics` | Show runtime metrics snapshot |
+| `/joke` | Send a random joke |
+| `/fact` | Send a random fun fact |
 | `/grant_access` | Grant AppleScript machine control |
 | `/revoke_access` | Revoke AppleScript machine control |
 | `/access_status` | Show machine-control permission |
+| `/approvals` | List pending risky tool actions |
+| `/approve [id]` | Approve latest/specific risky action |
+| `/deny [id]` | Deny latest/specific risky action |
 
 ---
 
@@ -192,17 +213,68 @@ Use these commands in any channel:
     "bindAddress": "127.0.0.1"    // Bind address
   },
   "ai": {
-    "provider": "anthropic",      // AI provider: anthropic, kimi, minimax
+    "provider": "anthropic",      // anthropic | openai | kimi | minimax | local
     "model": "claude-sonnet-4-20250514",
+    "routing": {
+      "enabled": true,            // Enable provider routing + failover
+      "strategy": "balanced",     // quality-first | speed-first | cost-first | balanced
+      "fallbackProviders": ["openai", "kimi", "minimax", "local"]
+    },
     "providers": {
       "anthropic": { "apiKey": "encrypted:..." },
+      "openai": { "apiKey": "encrypted:..." },
       "kimi": { "apiKey": "encrypted:..." },
-      "minimax": { "apiKey": "encrypted:...", "groupId": "..." }
+      "minimax": { "apiKey": "encrypted:...", "groupId": "..." },
+      "local": {
+        "baseUrl": "http://localhost:8000/v1",
+        "apiKey": "not-needed"
+      }
     }
+  },
+  "webhooks": {
+    "enabled": false,
+    "port": 19091,
+    "secret": "replace-me",
+    "maxPayloadBytes": 1048576,
+    "rateLimitPerMinute": 60,
+    "endpoints": [
+      {
+        "path": "/incoming/build-fail",
+        "url": "https://example.com/webhooks/build-fail",
+        "method": "POST",
+        "events": ["*"],
+        "secret": "replace-me"
+      }
+    ]
+  },
+  "automation": {
+    "enabled": false,
+    "workflows": [
+      {
+        "id": "build-failure-alert",
+        "enabled": true,
+        "trigger": { "type": "webhook", "path": "/incoming/build-fail" },
+        "condition": { "field": "data.status", "equals": "failed" },
+        "action": {
+          "type": "emit_webhook_event",
+          "eventType": "alerts.build.failed",
+          "message": "Build failed for {{data.project}} on {{data.branch}}"
+        }
+      }
+    ]
   },
   "heartbeat": {
     "enabled": true,              // Enable periodic check-ins
     "intervalMinutes": 30
+  },
+  "memory": {
+    "perUserEntryCap": 500,       // Max entries per user in long-term memory
+    "maxConnectedContextEntries": 8,
+    "semanticMinSimilarity": 0.75
+  },
+  "channels": {
+    "default": "telegram",
+    "enabled": ["telegram"]
   },
   "security": {
     "encryptCredentials": true,   // Encrypt API keys
@@ -245,6 +317,7 @@ cp .env.example .env
 | **Path Traversal Protection** | All file paths validated and scoped |
 | **Command Injection Prevention** | Input validation on all commands |
 | **Rate Limiting** | Persistent rate limiting per user |
+| **Risky Action Approval** | `bash`/`write_file`/`applescript`/risky browser actions need explicit approval |
 | **Health Endpoint Auth** | Token-based authentication required |
 | **Obfuscation Detection** | Detects base64, eval, reverse shells |
 
@@ -299,7 +372,16 @@ cp .env.example .env
 | `/help` | Show available commands and help |
 | `/status` | Check system status and configuration |
 | `/health` | Health check with detailed status |
-| `/skills` | List installed skills |
+| `/metrics` | Runtime metrics summary (requests, failures, estimated tokens/cost) |
+| `/session` | Show current session metadata |
+| `/joke` | Send a random joke |
+| `/fact` | Send a random fun fact |
+| `/grant_access` | Allow AppleScript machine control in this chat |
+| `/revoke_access` | Revoke AppleScript machine control |
+| `/access_status` | Check AppleScript access status |
+| `/approvals` | List pending risky tool approvals |
+| `/approve [id]` | Approve latest or specific risky action |
+| `/deny [id]` | Deny latest or specific risky action |
 
 ### CLI Commands
 
@@ -363,13 +445,13 @@ Extend mikiclaw with skills from ClawHub.
 
 ```bash
 # List installed skills
-npm run skills:list
+node dist/index.js skills list
 
 # Install a skill
-npm run skills:install <skill-name>
+node dist/index.js skills install <skill-name>
 
-# Search for skills
-mikiclaw skills search <query>
+# Show config location
+node dist/index.js config
 ```
 
 ### Creating Custom Skills
@@ -610,14 +692,19 @@ chmod 600 ~/.mikiclaw_key
 mikiclaw/
 ├── src/
 │   ├── agent/          # Agent logic and tools
-│   ├── ai/             # AI providers (Anthropic, Kimi, MiniMax)
+│   ├── ai/             # AI providers + router/failover
+│   ├── automation/     # Workflow engine (trigger/condition/action)
 │   ├── bot/            # Telegram bot handlers
+│   ├── channels/       # Channel adapters
 │   ├── commands/       # CLI commands
 │   ├── config/         # Configuration and encryption
 │   ├── heartbeat/      # Scheduled tasks
+│   ├── observability/  # Runtime metrics store
 │   ├── personality/    # SOUL.md and memory
+│   ├── security/       # Access grants + risky action approvals
 │   ├── skills/         # Skills system
 │   ├── utils/          # Utilities (validation, retry, logging)
+│   ├── webhooks/       # Signed webhook server + event delivery
 │   └── index.ts        # Entry point
 ├── tests/              # Test suite
 ├── dist/               # Compiled JavaScript

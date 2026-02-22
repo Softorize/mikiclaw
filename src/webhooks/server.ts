@@ -2,6 +2,7 @@ import { createServer, IncomingMessage, ServerResponse } from "node:http";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { configManager } from "../config/manager.js";
 import { logger } from "../utils/logger.js";
+import { workflowEngine } from "../automation/workflows.js";
 
 export interface WebhookEvent {
   type: string;
@@ -153,6 +154,24 @@ class WebhookServer {
       res.writeHead(403, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Unauthorized webhook request" }));
       return;
+    }
+
+    const workflowResult = await workflowEngine.run("webhook", {
+      path: url.pathname,
+      method,
+      remoteIp,
+      data
+    }, {
+      emitEvent: async (eventType, eventData) => {
+        await this.triggerEvent(eventType, eventData);
+      }
+    });
+    if (workflowResult.executed > 0) {
+      logger.info("Webhook workflows executed", {
+        path: url.pathname,
+        matched: workflowResult.matched,
+        executed: workflowResult.executed
+      });
     }
 
     res.writeHead(200, { "Content-Type": "application/json" });

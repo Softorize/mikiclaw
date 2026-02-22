@@ -11,6 +11,7 @@ export interface Session {
   chatId: number;
   userId: string;
   username?: string;
+  channel: string;
   mode: SessionMode;
   createdAt: number;
   lastActive: number;
@@ -49,6 +50,7 @@ class SessionManager {
       try {
         const content = readFileSync(join(this.sessionsDir, file), "utf-8");
         const session = JSON.parse(content) as Session;
+        session.channel = session.channel || "telegram";
         session.context = (session.context || []).filter(
           (msg) => !!msg && typeof msg.content === "string" && msg.content.trim().length > 0
         );
@@ -64,24 +66,24 @@ class SessionManager {
     return config.session?.mode || "main";
   }
 
-  private generateSessionId(chatId: number, userId: string): string {
+  private generateSessionId(chatId: number, userId: string, channel: string): string {
     const mode = this.getSessionMode();
     
     switch (mode) {
       case "per-peer":
-        return `peer_${userId}`;
+        return `peer_${channel}_${userId}`;
       case "per-channel":
-        return `channel_${chatId}`;
+        return `channel_${channel}_${chatId}`;
       case "per-account-channel":
-        return `account_${chatId}_${userId}`;
+        return `account_${channel}_${chatId}_${userId}`;
       case "main":
       default:
         return "main";
     }
   }
 
-  getOrCreateSession(chatId: number, userId: string, username?: string): Session {
-    const sessionId = this.generateSessionId(chatId, userId);
+  getOrCreateSession(chatId: number, userId: string, username?: string, channel: string = "telegram"): Session {
+    const sessionId = this.generateSessionId(chatId, userId, channel);
     
     let session = this.sessions.get(sessionId);
     
@@ -91,6 +93,7 @@ class SessionManager {
         chatId,
         userId,
         username,
+        channel,
         mode: this.getSessionMode(),
         createdAt: Date.now(),
         lastActive: Date.now(),
@@ -105,6 +108,7 @@ class SessionManager {
     }
 
     session.lastActive = Date.now();
+    session.channel = channel;
     return session;
   }
 

@@ -3,6 +3,8 @@ import { Cron } from "croner";
 import { loadHeartbeatConfig } from "../personality/soul.js";
 import { configManager } from "../config/manager.js";
 import { getRandomDadJoke, getRandomFunFact, getRandomGreeting } from "../personality/fun.js";
+import { workflowEngine } from "../automation/workflows.js";
+import { logger } from "../utils/logger.js";
 
 interface HeartbeatTask {
   name: string;
@@ -119,6 +121,20 @@ export class HeartbeatEngine {
         break;
       default:
         console.warn(`Unknown action: ${task.action}`);
+    }
+
+    const workflowResult = await workflowEngine.run("heartbeat", {
+      taskName: task.name,
+      action: task.action,
+      schedule: task.schedule,
+      timestamp: Date.now()
+    });
+    if (workflowResult.executed > 0) {
+      logger.info("Heartbeat workflows executed", {
+        taskName: task.name,
+        matched: workflowResult.matched,
+        executed: workflowResult.executed
+      });
     }
   }
 

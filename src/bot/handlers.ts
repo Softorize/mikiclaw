@@ -6,6 +6,7 @@ import { socialGraph } from "../personality/social_graph.js";
 import { UserProfiler } from "../personality/user_profiler.js";
 import { configManager } from "../config/manager.js";
 import { logger } from "../utils/logger.js";
+import { telegramAdapter } from "../channels/telegram_adapter.js";
 import {
   checkEasterEgg,
   getReaction,
@@ -171,11 +172,9 @@ export async function messageHandler(ctx: Context) {
     return;
   }
 
-  const chatId = ctx.chat?.id;
-  if (!chatId) return;
-
-  const userId = String(ctx.from?.id);
-  const username = ctx.from?.username;
+  const channelContext = telegramAdapter.toMessageContext(ctx);
+  if (!channelContext) return;
+  const { chatId, userId, username, channel } = channelContext;
 
   // Handle easter eggs contextually
   const easterEggHandled = await handleEasterEgg(ctx, text, userId);
@@ -193,7 +192,7 @@ export async function messageHandler(ctx: Context) {
     userId,
     username,
     chatId,
-    channel: "telegram"
+    channel
   };
 
   try {
@@ -246,14 +245,13 @@ export async function voiceHandler(ctx: Context) {
     return;
   }
 
-  const chatId = ctx.chat?.id;
-  if (!chatId) {
+  const channelContext = telegramAdapter.toMessageContext(ctx);
+  if (!channelContext) {
     await ctx.reply("❌ Chat context is missing for this voice message.");
     return;
   }
 
-  const userId = String(ctx.from?.id);
-  const username = ctx.from?.username;
+  const { chatId, userId, username, channel } = channelContext;
 
   if (voice.file_size && voice.file_size > 24 * 1024 * 1024) {
     await ctx.reply("🎤 Voice file is too large for transcription (max ~24MB).");
@@ -276,7 +274,8 @@ export async function voiceHandler(ctx: Context) {
       message: transcript,
       userId,
       username,
-      chatId
+      chatId,
+      channel
     });
 
     response = await addPersonalityTouch(response, userId);

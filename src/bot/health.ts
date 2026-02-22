@@ -2,6 +2,8 @@ import { createServer, IncomingMessage, ServerResponse } from "node:http";
 import { randomBytes } from "node:crypto";
 import { configManager } from "../config/manager.js";
 import { logger } from "../utils/logger.js";
+import { observabilityStore } from "../observability/metrics.js";
+import { sessionManager } from "../session/manager.js";
 
 interface HealthStatus {
   status: "healthy" | "degraded" | "unhealthy";
@@ -178,13 +180,24 @@ class HealthServer {
   }
 
   private getMetrics() {
+    const sessions = sessionManager.listSessions();
     return {
       uptime: Math.floor((Date.now() - this.startTime) / 1000),
       memory: process.memoryUsage(),
       cpu: process.cpuUsage(),
       platform: process.platform,
       nodeVersion: process.version,
-      pid: process.pid
+      pid: process.pid,
+      sessions: {
+        active: sessions.length,
+        topActive: sessions.slice(0, 10).map((session) => ({
+          id: session.id,
+          channel: session.channel,
+          messageCount: session.messageCount,
+          lastActive: session.lastActive
+        }))
+      },
+      observability: observabilityStore.getSnapshot()
     };
   }
 
@@ -222,6 +235,12 @@ class HealthServer {
       return { status: "ok" };
     }
     if (provider === "minimax" && config.ai?.providers?.minimax?.apiKey) {
+      return { status: "ok" };
+    }
+    if (provider === "openai" && config.ai?.providers?.openai?.apiKey) {
+      return { status: "ok" };
+    }
+    if (provider === "local") {
       return { status: "ok" };
     }
     

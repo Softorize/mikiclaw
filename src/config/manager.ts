@@ -5,6 +5,8 @@ import { z } from "zod";
 import { encryptConfig, decryptConfig, validateKeyFile } from "./encryption.js";
 import { getMikiclawDir } from "../utils/paths.js";
 
+const AIProviderSchema = z.enum(["anthropic", "kimi", "minimax", "openai", "local"]);
+
 const ConfigSchema = z.object({
   telegram: z.object({
     botToken: z.string().optional(),
@@ -15,8 +17,13 @@ const ConfigSchema = z.object({
     model: z.string().default("claude-sonnet-4-20250514")
   }).optional(),
   ai: z.object({
-    provider: z.enum(["anthropic", "kimi", "minimax", "openai", "local"]).default("anthropic"),
+    provider: AIProviderSchema.default("anthropic"),
     model: z.string().optional(),
+    routing: z.object({
+      enabled: z.boolean().default(true),
+      strategy: z.enum(["quality-first", "speed-first", "cost-first", "balanced"]).default("balanced"),
+      fallbackProviders: z.array(AIProviderSchema).default(["openai", "kimi", "minimax", "local"])
+    }).optional(),
     providers: z.object({
       anthropic: z.object({
         apiKey: z.string().optional()
@@ -66,6 +73,35 @@ const ConfigSchema = z.object({
   workspace: z.object({
     path: z.string().default("")
   }).optional(),
+  memory: z.object({
+    perUserEntryCap: z.number().default(500),
+    maxConnectedContextEntries: z.number().default(8),
+    semanticMinSimilarity: z.number().default(0.75)
+  }).optional(),
+  automation: z.object({
+    enabled: z.boolean().default(false),
+    workflows: z.array(z.object({
+      id: z.string(),
+      enabled: z.boolean().default(true),
+      trigger: z.object({
+        type: z.enum(["webhook", "heartbeat"]),
+        path: z.string().optional(),
+        taskName: z.string().optional(),
+        eventType: z.string().optional()
+      }),
+      condition: z.object({
+        field: z.string().optional(),
+        equals: z.union([z.string(), z.number(), z.boolean()]).optional(),
+        contains: z.string().optional()
+      }).optional(),
+      action: z.object({
+        type: z.enum(["emit_webhook_event", "log", "memory"]),
+        eventType: z.string().optional(),
+        message: z.string().optional(),
+        importance: z.number().optional()
+      })
+    })).default([])
+  }).optional(),
   security: z.object({
     encryptCredentials: z.boolean().default(true),
     toolPolicy: z.enum(["allow-all", "block-destructive", "allowlist-only"]).default("allowlist-only"),
@@ -91,6 +127,10 @@ const ConfigSchema = z.object({
     enabled: z.boolean().default(true),
     port: z.number().default(18791),
     bindAddress: z.string().default("127.0.0.1")
+  }).optional(),
+  channels: z.object({
+    default: z.enum(["telegram", "discord", "slack", "webchat"]).default("telegram"),
+    enabled: z.array(z.string()).default(["telegram"])
   }).optional()
 });
 
@@ -165,6 +205,11 @@ class ConfigManager {
       ai: {
         provider: "anthropic",
         model: "claude-sonnet-4-20250514",
+        routing: {
+          enabled: true,
+          strategy: "balanced",
+          fallbackProviders: ["openai", "kimi", "minimax", "local"]
+        },
         providers: {
           anthropic: { apiKey: undefined },
           kimi: { apiKey: undefined },
@@ -195,6 +240,15 @@ class ConfigManager {
       workspace: {
         path: join(mikiDir, "workspace")
       },
+      memory: {
+        perUserEntryCap: 500,
+        maxConnectedContextEntries: 8,
+        semanticMinSimilarity: 0.75
+      },
+      automation: {
+        enabled: false,
+        workflows: []
+      },
       security: {
         encryptCredentials: true,
         toolPolicy: "allowlist-only",
@@ -220,6 +274,10 @@ class ConfigManager {
         enabled: true,
         port: 18791,
         bindAddress: "127.0.0.1"
+      },
+      channels: {
+        default: "telegram",
+        enabled: ["telegram"]
       }
     };
   }
@@ -264,6 +322,32 @@ class ConfigManager {
 
   getAIModel(): string {
     return this.load().ai?.model || "claude-sonnet-4-20250514";
+  }
+
+  getAIRoutingConfig() {
+    const config = this.load();
+    return config.ai?.routing || {
+      enabled: true,
+      strategy: "balanced" as const,
+      fallbackProviders: ["openai", "kimi", "minimax", "local"]
+    };
+  }
+
+  getMemoryConfig() {
+    const config = this.load();
+    return config.memory || {
+      perUserEntryCap: 500,
+      maxConnectedContextEntries: 8,
+      semanticMinSimilarity: 0.75
+    };
+  }
+
+  getAutomationConfig() {
+    const config = this.load();
+    return config.automation || {
+      enabled: false,
+      workflows: []
+    };
   }
 
   getWorkspacePath(): string {
