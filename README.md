@@ -484,67 +484,50 @@ Create a skill manifest at `~/.mikiclaw/skills/<name>/claw.json`:
 
 ## 🚀 Deployment Options
 
-### Option 1: Local Development
+### Quick Recommendation
+
+| Platform | Recommended Service Manager |
+|----------|-----------------------------|
+| Linux | `systemd` |
+| macOS | `launchd` (`LaunchAgent`) |
+| Windows | `NSSM` (Windows Service) |
+| Any | `PM2` |
+
+### Option 1: Local (foreground)
+
+Use this for development only:
 
 ```bash
-# Install and build
 npm install
 npm run build
-
-# Run setup
 npm run setup
-
-# Start the bot
 npm start
 ```
 
-### Option 2: Docker Deployment
+### Option 2: Run As OS Service (recommended)
 
-Create a `Dockerfile`:
-
-```dockerfile
-FROM node:22-alpine
-
-WORKDIR /app
-
-COPY package*.json ./
-RUN npm ci --only=production
-
-COPY . .
-RUN npm run build
-
-# Create non-root user
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nodejs -u 1001
-
-USER nodejs
-
-CMD ["npm", "start"]
-```
+Build once before configuring any service:
 
 ```bash
-# Build and run
-docker build -t mikiclaw .
-docker run -d \
-  -v mikiclaw-data:/home/nodejs/.mikiclaw \
-  --name mikiclaw \
-  mikiclaw
+npm install
+npm run build
+npm run setup
 ```
 
-### Option 3: Systemd Service (Linux)
+#### Linux (`systemd`)
 
 Create `/etc/systemd/system/mikiclaw.service`:
 
 ```ini
 [Unit]
-Description=MikiClaw Telegram Bot
+Description=mikiclaw AI assistant service
 After=network.target
 
 [Service]
 Type=simple
-User=youruser
-WorkingDirectory=/path/to/mikiclaw
-ExecStart=/usr/bin/npm start
+User=YOUR_USER
+WorkingDirectory=/ABSOLUTE/PATH/TO/mikiclaw
+ExecStart=/usr/bin/env node /ABSOLUTE/PATH/TO/mikiclaw/dist/index.js start
 Restart=always
 RestartSec=10
 Environment=NODE_ENV=production
@@ -554,52 +537,127 @@ WantedBy=multi-user.target
 ```
 
 ```bash
-# Enable and start
+# Enable + start
 sudo systemctl daemon-reload
 sudo systemctl enable mikiclaw
 sudo systemctl start mikiclaw
 
-# Check status
+# Verify + logs
 sudo systemctl status mikiclaw
+sudo journalctl -u mikiclaw -f
 ```
 
-### Option 4: PM2 (Process Manager)
+#### macOS (`launchd`)
+
+Create `~/Library/LaunchAgents/com.softorize.mikiclaw.plist`:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>Label</key>
+    <string>com.softorize.mikiclaw</string>
+
+    <key>ProgramArguments</key>
+    <array>
+      <string>/usr/bin/env</string>
+      <string>node</string>
+      <string>/ABSOLUTE/PATH/TO/mikiclaw/dist/index.js</string>
+      <string>start</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/ABSOLUTE/PATH/TO/mikiclaw</string>
+
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/ABSOLUTE/PATH/TO/mikiclaw/logs/launchd-out.log</string>
+    <key>StandardErrorPath</key>
+    <string>/ABSOLUTE/PATH/TO/mikiclaw/logs/launchd-err.log</string>
+  </dict>
+</plist>
+```
 
 ```bash
-# Install PM2 globally
+mkdir -p ./logs
+
+# Load + start
+launchctl load -w ~/Library/LaunchAgents/com.softorize.mikiclaw.plist
+launchctl start com.softorize.mikiclaw
+
+# Status + logs
+launchctl list | grep mikiclaw
+tail -f ./logs/launchd-out.log
+```
+
+#### Windows (NSSM service)
+
+Install [NSSM](https://nssm.cc/download), then in elevated PowerShell:
+
+```bash
+npm install
+npm run build
+npm run setup
+
+nssm install MikiClaw "C:\Program Files\nodejs\node.exe" "C:\ABSOLUTE\PATH\mikiclaw\dist\index.js" start
+nssm set MikiClaw AppDirectory "C:\ABSOLUTE\PATH\mikiclaw"
+nssm set MikiClaw AppStdout "C:\ABSOLUTE\PATH\mikiclaw\logs\service-out.log"
+nssm set MikiClaw AppStderr "C:\ABSOLUTE\PATH\mikiclaw\logs\service-err.log"
+nssm start MikiClaw
+```
+
+### Option 3: PM2 (cross-platform)
+
+```bash
 npm install -g pm2
-
-# Start with PM2
-pm2 start npm --name "mikiclaw" -- start
-
-# Save PM2 configuration
+pm2 start dist/index.js --name "mikiclaw" -- start
 pm2 save
-
-# Setup PM2 to start on boot
 pm2 startup
+pm2 status
+pm2 logs mikiclaw
 ```
 
-### Option 5: Cloud Deployment
-
-#### Railway
+### Option 4: Docker
 
 ```bash
-# Install Railway CLI
-npm install -g @railway/cli
-
-# Login and deploy
-railway login
-railway init
-railway up
+docker build -t mikiclaw .
+docker run -d \
+  --name mikiclaw \
+  -v mikiclaw-data:/home/nodejs/.mikiclaw \
+  mikiclaw
 ```
 
-#### Render
+### Option 5: Cloud
 
-1. Create new Web Service
-2. Connect your GitHub repository
-3. Build command: `npm run build`
-4. Start command: `npm start`
-5. Add environment variables for API keys
+See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) for Railway/Render/GCP/AWS examples.
+
+### Updating A Running Service
+
+After pulling new code:
+
+```bash
+git pull
+npm install
+npm run build
+```
+
+Then restart based on service manager:
+
+```bash
+# systemd
+sudo systemctl restart mikiclaw
+
+# launchd
+launchctl kickstart -k gui/$(id -u)/com.softorize.mikiclaw
+
+# PM2
+pm2 restart mikiclaw
+```
 
 ---
 
@@ -609,16 +667,16 @@ railway up
 
 | Endpoint | URL | Auth Required |
 |----------|-----|---------------|
-| Health | `http://localhost:18790/health` | ✅ Token |
-| Metrics | `http://localhost:18790/metrics` | ✅ Token |
-| Token | `http://localhost:18790/token` | Localhost only |
+| Health | `http://localhost:19090/health` | ✅ Token |
+| Metrics | `http://localhost:19090/metrics` | ✅ Token |
+| Token | `http://localhost:19090/token` | Localhost only |
 
 ```bash
 # Check health (with auth token)
-curl -H "X-Auth-Token: YOUR_TOKEN" http://localhost:18790/health
+curl -H "X-Auth-Token: YOUR_TOKEN" http://localhost:19090/health
 
 # Get auth token (localhost only)
-curl http://localhost:18790/token
+curl http://localhost:19090/token
 ```
 
 ### Logs
@@ -672,8 +730,8 @@ chmod 600 ~/.mikiclaw_key
 #### Health endpoint not accessible
 
 1. By default, only localhost can access without auth
-2. Get auth token: `curl http://localhost:18790/token`
-3. Use token in header: `curl -H "X-Auth-Token: TOKEN" http://localhost:18790/health`
+2. Get auth token: `curl http://localhost:19090/token`
+3. Use token in header: `curl -H "X-Auth-Token: TOKEN" http://localhost:19090/health`
 
 ### Getting Help
 

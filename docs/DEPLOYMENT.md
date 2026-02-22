@@ -9,6 +9,8 @@ Complete guide for deploying mikiclaw to various environments.
 - [Local Development](#local-development)
 - [Docker Deployment](#docker-deployment)
 - [Linux Systemd Service](#linux-systemd-service)
+- [macOS LaunchAgent Service](#macos-launchagent-service)
+- [Windows Service (NSSM)](#windows-service-nssm)
 - [PM2 Process Manager](#pm2-process-manager)
 - [Cloud Platforms](#cloud-platforms)
 - [Production Checklist](#production-checklist)
@@ -51,10 +53,10 @@ npm run dev
 npm run status
 
 # Check health endpoint
-curl http://localhost:18790/health
+curl http://localhost:19090/health
 
 # Get auth token (localhost only)
-curl http://localhost:18790/token
+curl http://localhost:19090/token
 ```
 
 ---
@@ -108,10 +110,10 @@ USER nodejs
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:18790/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"
+  CMD node -e "require('http').get('http://localhost:19090/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"
 
 # Expose health endpoint (optional)
-EXPOSE 18790
+EXPOSE 19090
 
 # Use dumb-init as PID 1
 ENTRYPOINT ["dumb-init", "--"]
@@ -140,7 +142,7 @@ services:
       # - ANTHROPIC_API_KEY=your_key
     ports:
       # Only expose if needed (localhost default)
-      - "127.0.0.1:18790:18790"
+      - "127.0.0.1:19090:19090"
     networks:
       - mikiclaw-network
     # Resource limits
@@ -317,6 +319,110 @@ sudo systemctl restart mikiclaw
         systemctl reload mikiclaw 2>/dev/null || true
     endscript
 }
+```
+
+---
+
+## 🍎 macOS LaunchAgent Service
+
+Use `launchd` to keep `mikiclaw` running after login.
+
+### Build and setup first
+
+```bash
+npm install
+npm run build
+npm run setup
+mkdir -p ./logs
+```
+
+### Create LaunchAgent file
+
+Create `~/Library/LaunchAgents/com.softorize.mikiclaw.plist`:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>Label</key>
+    <string>com.softorize.mikiclaw</string>
+
+    <key>ProgramArguments</key>
+    <array>
+      <string>/usr/bin/env</string>
+      <string>node</string>
+      <string>/ABSOLUTE/PATH/TO/mikiclaw/dist/index.js</string>
+      <string>start</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/ABSOLUTE/PATH/TO/mikiclaw</string>
+
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/ABSOLUTE/PATH/TO/mikiclaw/logs/launchd-out.log</string>
+    <key>StandardErrorPath</key>
+    <string>/ABSOLUTE/PATH/TO/mikiclaw/logs/launchd-err.log</string>
+  </dict>
+</plist>
+```
+
+### Load and manage service
+
+```bash
+# Load + enable at login
+launchctl load -w ~/Library/LaunchAgents/com.softorize.mikiclaw.plist
+
+# Start now
+launchctl start com.softorize.mikiclaw
+
+# Check status
+launchctl list | grep mikiclaw
+
+# Restart
+launchctl kickstart -k gui/$(id -u)/com.softorize.mikiclaw
+
+# Stop + unload
+launchctl unload -w ~/Library/LaunchAgents/com.softorize.mikiclaw.plist
+```
+
+---
+
+## 🪟 Windows Service (NSSM)
+
+Use NSSM to run `mikiclaw` as a native Windows Service.
+
+### Build and setup first
+
+```powershell
+npm install
+npm run build
+npm run setup
+New-Item -ItemType Directory -Force -Path .\\logs
+```
+
+### Install service (PowerShell as Administrator)
+
+```powershell
+nssm install MikiClaw "C:\\Program Files\\nodejs\\node.exe" "C:\\ABSOLUTE\\PATH\\mikiclaw\\dist\\index.js" start
+nssm set MikiClaw AppDirectory "C:\\ABSOLUTE\\PATH\\mikiclaw"
+nssm set MikiClaw AppStdout "C:\\ABSOLUTE\\PATH\\mikiclaw\\logs\\service-out.log"
+nssm set MikiClaw AppStderr "C:\\ABSOLUTE\\PATH\\mikiclaw\\logs\\service-err.log"
+nssm start MikiClaw
+```
+
+### Manage service
+
+```powershell
+nssm status MikiClaw
+nssm restart MikiClaw
+nssm stop MikiClaw
+nssm remove MikiClaw confirm
 ```
 
 ---
@@ -600,8 +706,8 @@ sudo systemctl start mikiclaw
 #!/bin/bash
 # check-health.sh
 
-TOKEN=$(curl -s http://localhost:18790/token | jq -r '.token')
-STATUS=$(curl -s -H "X-Auth-Token: $TOKEN" http://localhost:18790/health)
+TOKEN=$(curl -s http://localhost:19090/token | jq -r '.token')
+STATUS=$(curl -s -H "X-Auth-Token: $TOKEN" http://localhost:19090/health)
 
 echo "$STATUS" | jq -r '.status'
 ```
@@ -611,7 +717,7 @@ echo "$STATUS" | jq -r '.status'
 ```bash
 # Install node-exporter for system metrics
 # mikiclaw exposes basic metrics at /metrics
-curl http://localhost:18790/metrics
+curl http://localhost:19090/metrics
 ```
 
 ### Log Analysis
