@@ -20,16 +20,22 @@ export function sanitizePath(inputPath: string, options?: {
   // Normalize the path to resolve . and .. segments
   let normalizedPath = normalize(inputPath);
 
+  const workspacePath = configManager.getWorkspacePath();
+
+  const isWithinBasePath = (basePath: string, targetPath: string): boolean => {
+    const rel = relative(basePath, targetPath);
+    return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
+  };
+
   // Check if path is absolute
   const isPathAbsolute = isAbsolute(normalizedPath);
   
   if (isPathAbsolute && !options?.allowAbsolute) {
     // Convert absolute path to relative if not allowed
-    const workspacePath = configManager.getWorkspacePath();
     const relPath = relative(workspacePath, normalizedPath);
     
     // If the relative path starts with .., it's outside workspace
-    if (relPath.startsWith("..")) {
+    if (!isWithinBasePath(workspacePath, normalizedPath)) {
       return { 
         valid: false, 
         path: "", 
@@ -42,12 +48,11 @@ export function sanitizePath(inputPath: string, options?: {
   // Check for path traversal attempts
   if (normalizedPath.includes("..")) {
     // Resolve the full path and verify it's within allowed directories
-    const workspacePath = configManager.getWorkspacePath();
     const fullPath = join(workspacePath, normalizedPath);
     const resolvedPath = normalize(fullPath);
     
     // Ensure the resolved path is within workspace
-    if (!resolvedPath.startsWith(workspacePath)) {
+    if (!isWithinBasePath(workspacePath, resolvedPath)) {
       return { 
         valid: false, 
         path: "", 
@@ -59,12 +64,11 @@ export function sanitizePath(inputPath: string, options?: {
 
   // Check against allowed base directories if specified
   if (options?.allowedBaseDirs) {
-    const workspacePath = configManager.getWorkspacePath();
     const fullPath = join(workspacePath, normalizedPath);
     
     const isAllowed = options.allowedBaseDirs.some(baseDir => {
       const allowedPath = join(workspacePath, baseDir);
-      return fullPath.startsWith(allowedPath);
+      return isWithinBasePath(allowedPath, fullPath);
     });
     
     if (!isAllowed) {

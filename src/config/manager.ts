@@ -1,9 +1,9 @@
-import { homedir } from "node:os";
 import { join } from "node:path";
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import JSON5 from "json5";
 import { z } from "zod";
-import { encrypt, decrypt, encryptConfig, decryptConfig, validateKeyFile } from "./encryption.js";
+import { encryptConfig, decryptConfig, validateKeyFile } from "./encryption.js";
+import { getMikiclawDir } from "../utils/paths.js";
 
 const ConfigSchema = z.object({
   telegram: z.object({
@@ -44,11 +44,16 @@ const ConfigSchema = z.object({
   webhooks: z.object({
     enabled: z.boolean().default(false),
     port: z.number().default(18791),
+    secret: z.string().optional(),
+    maxPayloadBytes: z.number().default(1024 * 1024),
+    rateLimitPerMinute: z.number().default(60),
     endpoints: z.array(z.object({
       path: z.string(),
       url: z.string(),
       method: z.enum(["GET", "POST"]).default("POST"),
-      events: z.array(z.string())
+      events: z.array(z.string()),
+      secret: z.string().optional(),
+      allowedIps: z.array(z.string()).optional()
     })).optional()
   }).optional(),
   heartbeat: z.object({
@@ -96,13 +101,12 @@ class ConfigManager {
   private config: Config | null = null;
 
   constructor() {
-    const homeDir = homedir();
-    const mikiDir = join(homeDir, ".mikiclaw");
-    
+    const mikiDir = getMikiclawDir();
+
     if (!existsSync(mikiDir)) {
       mkdirSync(mikiDir, { recursive: true });
     }
-    
+
     this.configPath = join(mikiDir, "config.json");
   }
 
@@ -112,42 +116,43 @@ class ConfigManager {
 
   load(): Config {
     if (this.config) return this.config;
-    
+
     if (existsSync(this.configPath)) {
       try {
         const raw = readFileSync(this.configPath, "utf-8");
-        const parsed = JSON5.parse(raw);
-        
-        if (parsed.security?.encryptCredentials) {
-          const decrypted = decryptConfig(parsed as any);
+        const parsed = JSON5.parse(raw) as unknown;
+
+        if (parsed && typeof parsed === "object" && (parsed as any).security?.encryptCredentials) {
+          const decrypted = decryptConfig(parsed as Record<string, unknown>);
           this.config = ConfigSchema.parse(decrypted);
         } else {
           this.config = ConfigSchema.parse(parsed);
         }
-      } catch (e) {
+      } catch {
         console.warn("Failed to load config, using defaults");
         this.config = this.getDefaults();
       }
     } else {
       this.config = this.getDefaults();
     }
-    
+
     return this.config;
   }
 
-  save(config: Config): void {
-    this.config = config;
-    
-    let toSave: any = { ...config };
-    if (config.security?.encryptCredentials) {
-      toSave = encryptConfig(toSave);
-    }
-    
-    writeFileSync(this.configPath, JSON.stringify(toSave, null, 2));
+  save(config: Partial<Config>): void {
+    const mergedConfig = this.mergeDeep(this.getDefaults(), config);
+    const parsedConfig = ConfigSchema.parse(mergedConfig);
+    this.config = parsedConfig;
+
+    const serialized = parsedConfig.security?.encryptCredentials
+      ? encryptConfig(parsedConfig as Record<string, unknown>)
+      : parsedConfig;
+
+    writeFileSync(this.configPath, JSON.stringify(serialized, null, 2), { mode: 0o600 });
   }
 
   getDefaults(): Config {
-    const homeDir = homedir();
+    const mikiDir = getMikiclawDir();
     return {
       telegram: {
         botToken: undefined,
@@ -175,6 +180,9 @@ class ConfigManager {
       webhooks: {
         enabled: false,
         port: 18791,
+        secret: undefined,
+        maxPayloadBytes: 1024 * 1024,
+        rateLimitPerMinute: 60,
         endpoints: []
       },
       heartbeat: {
@@ -185,7 +193,7 @@ class ConfigManager {
         autoUpdate: true
       },
       workspace: {
-        path: join(homeDir, ".mikiclaw", "workspace")
+        path: join(mikiDir, "workspace")
       },
       security: {
         encryptCredentials: true,
@@ -220,12 +228,10 @@ class ConfigManager {
     const config = this.load();
     const provider = config.ai?.provider || "anthropic";
 
-    // Check Telegram token
     if (!config.telegram?.botToken) {
       return false;
     }
 
-    // Check AI provider key
     if (provider === "anthropic") {
       return !!(config.anthropic?.apiKey || config.ai?.providers?.anthropic?.apiKey);
     }
@@ -239,7 +245,6 @@ class ConfigManager {
       return !!config.ai?.providers?.openai?.apiKey;
     }
     if (provider === "local") {
-      // Local provider doesn't need an API key, just a valid baseUrl
       return true;
     }
     return false;
@@ -262,12 +267,12 @@ class ConfigManager {
   }
 
   getWorkspacePath(): string {
-    return this.load().workspace?.path || join(homedir(), ".mikiclaw", "workspace");
+    return this.load().workspace?.path || join(getMikiclawDir(), "workspace");
   }
 
   update(updates: Partial<Config>): void {
     const current = this.load();
-    this.save({ ...current, ...updates });
+    this.save(this.mergeDeep(current, updates));
   }
 
   isCommandAllowed(command: string): boolean {
@@ -276,59 +281,101 @@ class ConfigManager {
     const blocked = config.security?.blockedCommands || [];
     const allowed = config.security?.allowedCommands || [];
 
-    // Normalize command for comparison
-    const normalizedCommand = command.trim().toLowerCase();
+    const normalizedCommand = this.normalizeCommand(command);
+    if (!normalizedCommand) {
+      return false;
+    }
 
-    // Always check blocked commands first (defense in depth)
     for (const blockedCmd of blocked) {
-      if (normalizedCommand.includes(blockedCmd.toLowerCase())) {
+      const normalizedBlocked = this.normalizeCommand(blockedCmd);
+      if (normalizedBlocked && normalizedCommand.includes(normalizedBlocked)) {
         return false;
       }
     }
 
-    // Check for obfuscation attempts (base64, encoded commands)
-    if (this.isObfuscatedCommand(command)) {
+    if (this.isObfuscatedCommand(normalizedCommand)) {
       return false;
     }
 
     if (policy === "allowlist-only") {
-      // For allowlist, check if command starts with or contains an allowed pattern
-      return allowed.some(allowedCmd => {
-        const normalizedAllowed = allowedCmd.toLowerCase();
-        return normalizedCommand.startsWith(normalizedAllowed) ||
-               normalizedCommand.includes(normalizedAllowed);
-      });
+      if (this.hasShellControlOperators(normalizedCommand)) {
+        return false;
+      }
+
+      return allowed.some(allowedCmd => this.matchesAllowedCommand(normalizedCommand, allowedCmd));
     }
 
-    // For block-destructive and allow-all, command passed blocked check
+    return true;
+  }
+
+  private normalizeCommand(command: string): string {
+    return command.trim().replace(/\s+/g, " ").toLowerCase();
+  }
+
+  private hasShellControlOperators(command: string): boolean {
+    return /(&&|\|\||;|\||\n|\r)/.test(command);
+  }
+
+  private matchesAllowedCommand(command: string, allowedCommand: string): boolean {
+    const normalizedAllowed = this.normalizeCommand(allowedCommand);
+    if (!normalizedAllowed) {
+      return false;
+    }
+
+    const commandTokens = command.split(" ");
+    const allowedTokens = normalizedAllowed.split(" ");
+
+    if (commandTokens.length < allowedTokens.length) {
+      return false;
+    }
+
+    for (let i = 0; i < allowedTokens.length; i++) {
+      if (commandTokens[i] !== allowedTokens[i]) {
+        return false;
+      }
+    }
+
     return true;
   }
 
   private isObfuscatedCommand(command: string): boolean {
     const normalized = command.toLowerCase();
 
-    // Check for base64 encoded commands
     if (normalized.includes("base64 -d") || normalized.includes("base64 --decode")) {
       return true;
     }
 
-    // Check for eval with encoded content
     if (normalized.includes("eval $(") || normalized.includes("eval$(")) {
       return true;
     }
 
-    // Check for reverse shell patterns
     if (normalized.includes("/dev/tcp/") || normalized.includes("nc -e") || normalized.includes("bash -i")) {
       return true;
     }
 
-    // Check for command substitution in dangerous contexts
-    if (normalized.includes("$(curl") || normalized.includes("$(wget") ||
-        normalized.includes("`curl") || normalized.includes("`wget")) {
+    if (normalized.includes("$(curl") || normalized.includes("$(wget") || normalized.includes("`curl") || normalized.includes("`wget")) {
       return true;
     }
 
     return false;
+  }
+
+  private mergeDeep<T>(target: T, source: Partial<T>): T {
+    const output: Record<string, unknown> = { ...(target as Record<string, unknown>) };
+
+    for (const [key, value] of Object.entries(source as Record<string, unknown>)) {
+      if (this.isPlainObject(value) && this.isPlainObject(output[key])) {
+        output[key] = this.mergeDeep(output[key] as Record<string, unknown>, value as Record<string, unknown>);
+      } else {
+        output[key] = value;
+      }
+    }
+
+    return output as T;
+  }
+
+  private isPlainObject(value: unknown): value is Record<string, unknown> {
+    return value !== null && typeof value === "object" && !Array.isArray(value);
   }
 
   validateEncryption(): { valid: boolean; message: string } {

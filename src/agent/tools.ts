@@ -20,6 +20,25 @@ export function getTools() {
       }
     },
     {
+      name: "applescript",
+      description: "Run AppleScript on macOS via osascript. Requires explicit user permission (/grant_access).",
+      input_schema: {
+        type: "object",
+        properties: {
+          script: {
+            type: "string",
+            description: "AppleScript code to execute"
+          },
+          timeout: {
+            type: "number",
+            description: "Timeout in seconds (default: 20)",
+            default: 20
+          }
+        },
+        required: ["script"]
+      }
+    },
+    {
       name: "browser_navigate",
       description: "Navigate to a URL in a headless browser. Returns the page title.",
       input_schema: {
@@ -83,7 +102,12 @@ export function getTools() {
       description: "Get the text content of the current page.",
       input_schema: {
         type: "object",
-        properties: {}
+        properties: {
+          maxChars: {
+            type: "number",
+            description: "Maximum number of characters to return (default: 6000)"
+          }
+        }
       }
     },
     {
@@ -101,8 +125,86 @@ export function getTools() {
       }
     },
     {
+      name: "browser_fill",
+      description: "Fill multiple form fields in one call.",
+      input_schema: {
+        type: "object",
+        properties: {
+          fields: {
+            type: "object",
+            description: "Map of CSS selector -> text value, or an array of {selector, text}"
+          }
+        },
+        required: ["fields"]
+      }
+    },
+    {
+      name: "browser_select",
+      description: "Select a value in a dropdown/select element.",
+      input_schema: {
+        type: "object",
+        properties: {
+          selector: {
+            type: "string",
+            description: "CSS selector for the select element"
+          },
+          value: {
+            type: "string",
+            description: "Option value to select"
+          }
+        },
+        required: ["selector", "value"]
+      }
+    },
+    {
+      name: "browser_scroll",
+      description: "Scroll the current page up or down.",
+      input_schema: {
+        type: "object",
+        properties: {
+          direction: {
+            type: "string",
+            description: "Scroll direction: up or down"
+          },
+          amount: {
+            type: "number",
+            description: "Scroll distance in pixels (default: 800)"
+          }
+        }
+      }
+    },
+    {
+      name: "browser_back",
+      description: "Navigate back in browser history.",
+      input_schema: {
+        type: "object",
+        properties: {}
+      }
+    },
+    {
+      name: "browser_forward",
+      description: "Navigate forward in browser history.",
+      input_schema: {
+        type: "object",
+        properties: {}
+      }
+    },
+    {
+      name: "browser_snapshot",
+      description: "Capture structured page snapshot with headings, links, and controls.",
+      input_schema: {
+        type: "object",
+        properties: {
+          maxChars: {
+            type: "number",
+            description: "Maximum snapshot output length (default: 5000)"
+          }
+        }
+      }
+    },
+    {
       name: "read_file",
-      description: "Read the contents of a file from the filesystem. Use this to view code, configs, or any text files.",
+      description: "Read the contents of a file from the filesystem (workspace-scoped). Use this to view code, configs, or any text files.",
       input_schema: {
         type: "object",
         properties: {
@@ -126,7 +228,7 @@ export function getTools() {
     },
     {
       name: "write_file",
-      description: "Write content to a file. Creates new file or overwrites existing.",
+      description: "Write content to a file (workspace-scoped). Creates new file or overwrites existing.",
       input_schema: {
         type: "object",
         properties: {
@@ -144,7 +246,7 @@ export function getTools() {
     },
     {
       name: "list_directory",
-      description: "List files and directories in a folder. Shows file sizes and modification dates.",
+      description: "List files and directories in a folder (workspace-scoped).",
       input_schema: {
         type: "object",
         properties: {
@@ -157,7 +259,7 @@ export function getTools() {
     },
     {
       name: "glob",
-      description: "Find files matching a pattern in the filesystem using glob patterns.",
+      description: "Find files matching a pattern in the filesystem using glob patterns (workspace-scoped).",
       input_schema: {
         type: "object",
         properties: {
@@ -175,7 +277,7 @@ export function getTools() {
     },
     {
       name: "grep",
-      description: "Search for text patterns within files. Useful for finding code or configuration.",
+      description: "Search for text patterns within files (workspace-scoped). Useful for finding code or configuration.",
       input_schema: {
         type: "object",
         properties: {
@@ -229,25 +331,32 @@ export function getTools() {
       }
     },
     {
-      name: "get_system_info",
-      description: "Get information about the system, including OS, CPU, memory, and disk usage.",
+      name: "gac_list_accounts",
+      description: "List Google Analytics accounts via gac CLI on the local machine.",
       input_schema: {
         type: "object",
         properties: {}
       }
     },
     {
-      name: "nodejs",
-      description: "Execute Node.js code safely. NOTE: Direct eval is disabled. Use bash tool with 'node -e' for calculations.",
+      name: "gac_list_properties",
+      description: "List Google Analytics properties via gac CLI. If accountId is omitted, scans all accounts.",
       input_schema: {
         type: "object",
         properties: {
-          code: {
+          accountId: {
             type: "string",
-            description: "JavaScript code to execute (limited functionality)"
+            description: "Optional GA account ID to scope the property list"
           }
-        },
-        required: ["code"]
+        }
+      }
+    },
+    {
+      name: "get_system_info",
+      description: "Get information about the system, including OS, CPU, memory, and disk usage.",
+      input_schema: {
+        type: "object",
+        properties: {}
       }
     }
   ];

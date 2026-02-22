@@ -28,6 +28,9 @@ export const kimiProvider: AIProvider = {
     }
 
     for (const msg of messages) {
+      if (!msg.content || msg.content.trim().length === 0) {
+        continue;
+      }
       formattedMessages.push({
         role: msg.role === "system" ? "system" : msg.role,
         content: msg.content
@@ -47,7 +50,8 @@ export const kimiProvider: AIProvider = {
     const requestBody: any = {
       model,
       messages: formattedMessages,
-      temperature: 0.7,
+      // Kimi currently enforces temperature=1 for this model family.
+      temperature: 1,
       max_tokens: 4096
     };
 
@@ -97,11 +101,27 @@ export const kimiProvider: AIProvider = {
 
       return { content, toolCalls: toolCalls.length > 0 ? toolCalls : undefined };
     } catch (error) {
-      logger.error("Kimi API error after retries", { error: String(error) });
+      let details = "";
+      const response = (error as any)?.response as Response | undefined;
+      if (response && !response.bodyUsed) {
+        try {
+          details = await response.text();
+        } catch {
+          // Ignore response body parsing failures
+        }
+      }
+
+      logger.error("Kimi API error after retries", {
+        error: String(error),
+        details: details ? details.slice(0, 500) : undefined
+      });
+
       if (error instanceof Error && error.message.includes("Kimi API error")) {
         throw error;
       }
-      throw new Error(`Kimi API error: ${error instanceof Error ? error.message : "Unknown"}`);
+
+      const errorMessage = details || (error instanceof Error ? error.message : "Unknown");
+      throw new Error(`Kimi API error: ${errorMessage}`);
     }
   }
 };

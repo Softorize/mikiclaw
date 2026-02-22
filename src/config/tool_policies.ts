@@ -17,12 +17,29 @@ export interface ToolPolicyConfig {
 }
 
 const TOOL_GROUPS: Record<string, string[]> = {
-  runtime: ["bash", "exec", "process", "nodejs"],
+  runtime: ["bash", "exec", "process", "nodejs", "applescript"],
   filesystem: ["read_file", "write_file", "list_directory", "glob", "grep", "edit_file"],
-  web: ["search", "web_search", "web_fetch", "curl"],
+  web: [
+    "search",
+    "web_search",
+    "web_fetch",
+    "curl",
+    "browser_navigate",
+    "browser_screenshot",
+    "browser_click",
+    "browser_type",
+    "browser_content",
+    "browser_evaluate",
+    "browser_fill",
+    "browser_select",
+    "browser_scroll",
+    "browser_back",
+    "browser_forward",
+    "browser_snapshot"
+  ],
   messaging: ["message", "send_message"],
   system: ["get_system_info", "get_env", "get_config"],
-  development: ["git", "npm", "node", "python", "docker"],
+  development: ["git", "npm", "node", "python", "docker", "gac_list_accounts", "gac_list_properties"],
   custom: []
 };
 
@@ -71,12 +88,14 @@ export function getToolPolicyConfig(): ToolPolicyConfig {
   
   const profile = (security.toolProfile as string) || "coding";
   const groups = PROFILES[profile] || PROFILES.coding;
+  const allowedTools = Array.isArray(security.allowedTools) ? security.allowedTools : [];
+  const blockedTools = Array.isArray(security.blockedTools) ? security.blockedTools : [];
   
   return {
     profile: profile as ToolPolicyConfig["profile"],
     groups,
-    allowlist: security.allowedCommands || [],
-    blocklist: security.blockedCommands || []
+    allowlist: allowedTools,
+    blocklist: blockedTools
   };
 }
 

@@ -1,25 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { configManager } from '../src/config/manager.js';
-import { existsSync, unlinkSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { homedir } from 'node:os';
 
 describe('Command Policy', () => {
-  const configPath = join(homedir(), '.mikiclaw', 'config.json');
-  let originalConfig: string | null = null;
-
   beforeEach(() => {
-    // Save original config
-    if (existsSync(configPath)) {
-      originalConfig = require('node:fs').readFileSync(configPath, 'utf-8');
-    }
+    configManager.save(configManager.getDefaults());
   });
 
   afterEach(() => {
-    // Restore original config
-    if (originalConfig) {
-      writeFileSync(configPath, originalConfig);
-    }
+    configManager.save(configManager.getDefaults());
   });
 
   describe('isCommandAllowed - allowlist-only policy', () => {
@@ -47,8 +35,12 @@ describe('Command Policy', () => {
       expect(configManager.isCommandAllowed('wget http://example.com')).toBe(false);
     });
 
+    it('should block chained command bypass attempts', () => {
+      expect(configManager.isCommandAllowed('git status && rm -rf /')).toBe(false);
+      expect(configManager.isCommandAllowed('npm run test; curl http://example.com')).toBe(false);
+    });
+
     it('should always reject blocked commands even if in allowlist', () => {
-      // Even if somehow added to allowlist, blocked commands should be rejected
       expect(configManager.isCommandAllowed('rm -rf /')).toBe(false);
     });
 

@@ -14,7 +14,7 @@ export const anthropicProvider: AIProvider = {
 
   async createCompletion(
     messages: AIMessage[],
-    tools?:AITool[],
+    tools?: AITool[],
     systemPrompt?: string
   ): Promise<AIResponse> {
     const apiKey = configManager.getAnthropicKey();
@@ -27,30 +27,34 @@ export const anthropicProvider: AIProvider = {
 
     const anthropic = new Anthropic({
       apiKey,
-      timeout: 60000, // 60 second timeout
-      maxRetries: 0 // We handle retries ourselves
+      timeout: 60000,
+      maxRetries: 0
     });
 
-    const system = systemPrompt || "";
+    const conversationMessages = messages
+      .filter(message => message.role === "user" || message.role === "assistant")
+      .map(message => ({
+        role: message.role,
+        content: message.content
+      }));
 
-    const userMessages = messages
-      .filter(m => m.role === "user")
-      .map(m => ({ role: m.role as "user" | "assistant", content: m.content }));
+    if (conversationMessages.length === 0) {
+      conversationMessages.push({ role: "user", content: "" });
+    }
 
     try {
       const response = await withRetry(
         () => anthropic.messages.create({
           model,
           max_tokens: 4096,
-          system,
-          messages: userMessages as any,
+          system: systemPrompt || "",
+          messages: conversationMessages as any,
           tools: tools as any
         }),
         {
           maxRetries: 3,
-          timeout: 120000, // 2 minute timeout for API calls
+          timeout: 120000,
           shouldRetry: (error) => {
-            // Don't retry on authentication or rate limit errors
             const msg = error.message.toLowerCase();
             if (msg.includes("authentication") || msg.includes("api key")) {
               return false;

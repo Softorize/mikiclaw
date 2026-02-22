@@ -23,3 +23,6 @@ npm-debug.log*
 
 # mikiclaw local config
 .mikiclaw/
+
+# Claude Code local settings
+.claude/settings.local.json

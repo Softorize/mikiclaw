@@ -1,6 +1,6 @@
 import { createWriteStream, existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { homedir } from "node:os";
+import { getMikiclawDir } from "./paths.js";
 
 type LogLevel = "debug" | "info" | "warn" | "error";
 
@@ -17,7 +17,7 @@ class Logger {
   private minLevel: LogLevel = "info";
 
   constructor() {
-    const logDir = join(homedir(), ".mikiclaw", "logs");
+    const logDir = join(getMikiclawDir(), "logs");
     if (!existsSync(logDir)) {
       mkdirSync(logDir, { recursive: true });
     }

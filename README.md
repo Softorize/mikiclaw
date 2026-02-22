@@ -107,6 +107,7 @@ Message your Telegram bot to get started!
 | Tool | Description | Security |
 |------|-------------|----------|
 | `bash` | Execute shell commands | ✅ Allowlist/Blocklist |
+| `applescript` | Control macOS via AppleScript | ✅ Permission-gated (`/grant_access`) |
 | `read_file` | Read files from filesystem | ✅ Path validation |
 | `write_file` | Write files to filesystem | ✅ Path validation |
 | `list_directory` | List directory contents | ✅ Scoped to workspace |
@@ -131,6 +132,7 @@ Control a headless browser to interact with websites:
 - `browser_select` - Select dropdown options
 - `browser_scroll` - Scroll page
 - `browser_back/forward` - Navigation
+- `browser_snapshot` - Structured page snapshot
 
 ### Chat Commands
 
@@ -146,6 +148,9 @@ Use these commands in any channel:
 | `/help` | Show available commands |
 | `/sessions` | List your active sessions |
 | `/browser <action>` | Browser control commands |
+| `/grant_access` | Grant AppleScript machine control |
+| `/revoke_access` | Revoke AppleScript machine control |
+| `/access_status` | Show machine-control permission |
 
 ---
 

@@ -1,18 +1,24 @@
 import { Telegraf } from "telegraf";
 import ora from "ora";
 import { configManager } from "../config/manager.js";
-import { messageHandler } from "../bot/handlers.js";
+import { messageHandler, voiceHandler } from "../bot/handlers.js";
 import { HeartbeatEngine } from "../heartbeat/engine.js";
 import { healthServer } from "../bot/health.js";
 import { logger } from "../utils/logger.js";
 import { sessionManager } from "../session/manager.js";
 import { webhookServer } from "../webhooks/server.js";
+import { accessControl } from "../security/access_control.js";
 import { getRandomDadJoke, getRandomTechJoke, getRandomFunFact } from "../personality/fun.js";
 
 export async function startBot() {
   logger.info("Starting mikiclaw");
   
   const spinner = ora("Starting mikiclaw...").start();
+  let heartbeatEngine: HeartbeatEngine | undefined;
+  const startupConfig = configManager.load();
+  const webhookPort = startupConfig.webhooks?.port || 19091;
+  const healthPort = webhookPort > 19000 ? webhookPort - 1 : 19090;
+  const healthBindAddress = startupConfig.webchat?.bindAddress || "127.0.0.1";
 
   if (!configManager.isConfigured()) {
     spinner.fail("Not configured. Run 'npm run setup' first!");
@@ -30,6 +36,9 @@ export async function startBot() {
   bot.use(async (ctx, next) => {
     const start = Date.now();
     try {
+      if (ctx.chat?.id && heartbeatEngine) {
+        heartbeatEngine.trackInteraction(ctx.chat.id);
+      }
       await next();
       const responseTime = Date.now() - start;
       logger.info("Request processed", { 
@@ -62,6 +71,9 @@ export async function startBot() {
 /session - Show session info
 /joke - Get a random joke
 /fact - Get a random fun fact
+/grant_access - Allow AppleScript machine control in this chat
+/revoke_access - Disable AppleScript machine control
+/access_status - Show current machine-control permission
 
 *Just send me a message and I'll help!*
 `, { parse_mode: "Markdown" });
@@ -95,7 +107,7 @@ export async function startBot() {
 
   bot.command("health", async (ctx) => {
     try {
-      const response = await fetch("http://localhost:18790/health");
+      const response = await fetch(`http://${healthBindAddress}:${healthPort}/health`);
       const health = await response.json() as any;
       
       ctx.reply(`*Health Check*
@@ -141,12 +153,54 @@ ${sessions.slice(0, 5).map(s => `- ${s.id}: ${s.messageCount} messages`).join("\
     await ctx.reply(`💡 *Did You Know?*\n\n${fact}`, { parse_mode: "Markdown" });
   });
 
+  bot.command("grant_access", async (ctx) => {
+    const chatId = ctx.chat?.id;
+    const userId = ctx.from?.id ? String(ctx.from.id) : "";
+    if (!chatId || !userId) {
+      await ctx.reply("❌ Could not grant access: missing chat/user context.");
+      return;
+    }
+
+    accessControl.grantAppleScript(userId, chatId);
+    await ctx.reply("✅ Machine control granted for this chat. I can now run AppleScript actions when you ask.");
+  });
+
+  bot.command("revoke_access", async (ctx) => {
+    const chatId = ctx.chat?.id;
+    const userId = ctx.from?.id ? String(ctx.from.id) : "";
+    if (!chatId || !userId) {
+      await ctx.reply("❌ Could not revoke access: missing chat/user context.");
+      return;
+    }
+
+    accessControl.revokeAppleScript(userId, chatId);
+    await ctx.reply("🔒 Machine control revoked for this chat.");
+  });
+
+  bot.command("access_status", async (ctx) => {
+    const chatId = ctx.chat?.id;
+    const userId = ctx.from?.id ? String(ctx.from.id) : "";
+    if (!chatId || !userId) {
+      await ctx.reply("❌ Could not read access status: missing chat/user context.");
+      return;
+    }
+
+    const granted = accessControl.hasAppleScriptAccess(userId, chatId);
+    const grantedAt = accessControl.getAppleScriptGrantTime(userId, chatId);
+    if (!granted || !grantedAt) {
+      await ctx.reply("🔒 Machine control is not granted in this chat. Send /grant_access to enable.");
+      return;
+    }
+
+    await ctx.reply(`✅ Machine control is granted.\nGranted at: ${new Date(grantedAt).toLocaleString()}`);
+  });
+
+  bot.on("voice", voiceHandler);
   bot.on("message", messageHandler);
 
   spinner.succeed("Bot initialized!");
 
   const heartbeatEnabled = configManager.load().heartbeat?.enabled;
-  let heartbeatEngine: HeartbeatEngine | undefined;
 
   if (heartbeatEnabled) {
     spinner.start("Starting heartbeat...");
@@ -156,8 +210,8 @@ ${sessions.slice(0, 5).map(s => `- ${s.id}: ${s.messageCount} messages`).join("\
   }
 
   spinner.start("Starting health server...");
-  healthServer.start();
-  spinner.succeed("Health server started on port 18790");
+  healthServer.start({ port: healthPort, bindAddress: healthBindAddress });
+  spinner.succeed(`Health server started on port ${healthPort}`);
 
   spinner.start("Starting webhook server...");
   webhookServer.start();
@@ -172,7 +226,7 @@ ${sessions.slice(0, 5).map(s => `- ${s.id}: ${s.messageCount} messages`).join("\
     logger.info("mikiclaw started successfully");
     console.log("\n🦞 mikiclaw is now running!");
     console.log("Message your bot to get started.");
-    console.log("Health check: http://localhost:18790/health\n");
+    console.log(`Health check: http://${healthBindAddress}:${healthPort}/health\n`);
   } catch (error) {
     logger.error("Failed to start bot", { error: String(error) });
     spinner.fail(`Failed to start: ${error}`);
@@ -191,6 +245,8 @@ ${sessions.slice(0, 5).map(s => `- ${s.id}: ${s.messageCount} messages`).join("\
     // Close browser if open
     const { closeBrowser } = await import("../tools/browser_search.js");
     await closeBrowser();
+    const { closeBrowserSession } = await import("../tools/browser_session.js");
+    await closeBrowserSession();
     
     logger.close();
     

@@ -1,7 +1,7 @@
 import { configManager } from "../config/manager.js";
-import { homedir } from "node:os";
 import { join } from "node:path";
-import { existsSync, mkdirSync, readFileSync, writeFileSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { getMikiclawDir } from "./paths.js";
 
 interface RateLimitEntry {
   count: number;
@@ -16,7 +16,7 @@ interface RateLimitData {
 
 const RATE_LIMIT_FILE = "rate_limits.json";
 const DATA_VERSION = 1;
-const MAX_AGE_MS = 5 * 60 * 1000; // 5 minutes max age for stale entries
+const MAX_AGE_MS = 5 * 60 * 1000;
 
 class RateLimiter {
   private limits: Map<string, RateLimitEntry> = new Map();
@@ -25,16 +25,13 @@ class RateLimiter {
   private cleanupInterval: NodeJS.Timeout;
 
   constructor() {
-    const dataDir = join(homedir(), ".mikiclaw");
+    const dataDir = getMikiclawDir();
     if (!existsSync(dataDir)) {
       mkdirSync(dataDir, { recursive: true });
     }
     this.dataPath = join(dataDir, RATE_LIMIT_FILE);
-    
-    // Load existing data
+
     this.loadData();
-    
-    // Start cleanup interval
     this.cleanupInterval = setInterval(() => this.cleanup(), 60000);
   }
 
@@ -48,37 +45,47 @@ class RateLimiter {
       const data: RateLimitData = JSON.parse(raw);
 
       if (data.version !== DATA_VERSION) {
-        // Incompatible version, start fresh
         this.limits = new Map();
         return;
       }
 
-      // Convert from plain object to Map
       this.limits = new Map(Object.entries(data.entries || {}));
-    } catch (e) {
-      // File corrupted, start fresh
+    } catch {
       this.limits = new Map();
     }
   }
 
+  private saveNow(): void {
+    try {
+      const data: RateLimitData = {
+        version: DATA_VERSION,
+        entries: Object.fromEntries(this.limits)
+      };
+      writeFileSync(this.dataPath, JSON.stringify(data, null, 2), { mode: 0o600 });
+    } catch {
+      // Keep in-memory state if disk writes fail
+    }
+  }
+
   private saveData(): void {
-    // Debounce saves to avoid excessive I/O
     if (this.saveTimeout) {
       clearTimeout(this.saveTimeout);
     }
 
     this.saveTimeout = setTimeout(() => {
-      try {
-        const data: RateLimitData = {
-          version: DATA_VERSION,
-          entries: Object.fromEntries(this.limits)
-        };
-        writeFileSync(this.dataPath, JSON.stringify(data, null, 2), { mode: 0o600 });
-      } catch (e) {
-        // Ignore save errors, data is in memory
-      }
+      this.saveNow();
       this.saveTimeout = null;
     }, 1000);
+  }
+
+  async flushPendingWrites(): Promise<void> {
+    if (!this.saveTimeout) {
+      return;
+    }
+
+    clearTimeout(this.saveTimeout);
+    this.saveTimeout = null;
+    this.saveNow();
   }
 
   isAllowed(userId: string): boolean {
@@ -104,15 +111,9 @@ class RateLimiter {
 
     entry.count++;
     entry.lastAccess = now;
-
-    // Save to disk periodically
     this.saveData();
 
-    if (entry.count > maxRequests) {
-      return false;
-    }
-
-    return true;
+    return entry.count <= maxRequests;
   }
 
   getRemainingRequests(userId: string): number {
@@ -159,7 +160,6 @@ class RateLimiter {
     let changed = false;
 
     for (const [key, entry] of this.limits.entries()) {
-      // Remove entries that are older than MAX_AGE_MS
       if (now - entry.lastAccess > MAX_AGE_MS) {
         this.limits.delete(key);
         changed = true;
@@ -185,9 +185,10 @@ class RateLimiter {
   destroy(): void {
     if (this.saveTimeout) {
       clearTimeout(this.saveTimeout);
+      this.saveTimeout = null;
     }
     clearInterval(this.cleanupInterval);
-    this.saveData();
+    this.saveNow();
     this.limits.clear();
   }
 }
