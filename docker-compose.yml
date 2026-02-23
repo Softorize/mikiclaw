@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  mikiclaw:
+    build: .
+    container_name: mikiclaw
+    restart: unless-stopped
+    ports:
+      - "18791:18791"  # WebChat
+      - "19090:19090"  # Health server
+      - "19091:19091"  # Webhooks
+    volumes:
+      - mikiclaw_data:/home/nodejs/.mikiclaw
+      - ./config.json:/home/nodejs/.mikiclaw/config.json:ro
+      - ./workspace:/home/nodejs/.mikiclaw/workspace
+    environment:
+      - NODE_ENV=production
+      - TZ=UTC
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:19090/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) }).on('error', () => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - mikiclaw_network
+
+  # Optional: PostgreSQL for persistent storage
+  # postgres:
+  #   image: postgres:16-alpine
+  #   container_name: mikiclaw_postgres
+  #   restart: unless-stopped
+  #   environment:
+  #     POSTGRES_DB: mikiclaw
+  #     POSTGRES_USER: mikiclaw
+  #     POSTGRES_PASSWORD: change_this_password
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   networks:
+  #     - mikiclaw_network
+
+  # Optional: Redis for caching
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: mikiclaw_redis
+  #   restart: unless-stopped
+  #   command: redis-server --appendonly yes
+  #   volumes:
+  #     - redis_data:/data
+  #   networks:
+  #     - mikiclaw_network
+
+volumes:
+  mikiclaw_data:
+  # postgres_data:
+  # redis_data:
+
+networks:
+  mikiclaw_network:
+    driver: bridge
