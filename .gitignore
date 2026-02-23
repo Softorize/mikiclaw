@@ -26,3 +26,10 @@ npm-debug.log*
 
 # Claude Code local settings
 .claude/settings.local.json
+
+# Memory files - should not be tracked in git
+workspace/MEMORY.md
+workspace/SOUL.md
+workspace/HEARTBEAT.md
+workspace/conversations/
+workspace/profiles/
