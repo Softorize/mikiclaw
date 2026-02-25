@@ -11,11 +11,8 @@ const ConfigSchema = z.object({
   telegram: z.object({
     botToken: z.string().optional(),
     allowedUsers: z.array(z.string()).optional()
-  }).optional(),
-  anthropic: z.object({
-    apiKey: z.string().optional(),
-    model: z.string().default("claude-sonnet-4-20250514")
-  }).optional(),
+  ,
+  ,
   ai: z.object({
     provider: AIProviderSchema.default("anthropic"),
     model: z.string().optional(),
@@ -196,12 +193,9 @@ class ConfigManager {
     return {
       telegram: {
         botToken: undefined,
-        allowedUsers: []
+        
       },
-      anthropic: {
-        apiKey: undefined,
-        model: "claude-sonnet-4-20250514"
-      },
+      ,
       ai: {
         provider: "anthropic",
         model: "claude-sonnet-4-20250514",
@@ -291,7 +285,7 @@ class ConfigManager {
     }
 
     if (provider === "anthropic") {
-      return !!(config.anthropic?.apiKey || config.ai?.providers?.anthropic?.apiKey);
+      return !!config.ai?.providers?.anthropic?.apiKey;
     }
     if (provider === "kimi") {
       return !!config.ai?.providers?.kimi?.apiKey;
@@ -313,7 +307,7 @@ class ConfigManager {
   }
 
   getAnthropicKey(): string | undefined {
-    return this.load().anthropic?.apiKey;
+    return this.load().ai?.providers?.anthropic?.apiKey;
   }
 
   getAIProvider(): string {
