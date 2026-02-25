@@ -1,10 +1,10 @@
-import { configManager } from "../config/manager.js";
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
+import { configManager } from '../config/manager.js';
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { join } from 'node:path';
 
 /**
  * Social Graph - Multi-User Relationship Tracking
- * 
+ *
  * Tracks relationships between users in group contexts:
  * - Who knows who
  * - Interaction patterns
@@ -19,8 +19,8 @@ export interface UserNode {
   lastActive: string;
   interactionCount: number;
   traits: {
-    role?: "leader" | "contributor" | "observer" | "newcomer";
-    activity: "high" | "medium" | "low";
+    role?: 'leader' | 'contributor' | 'observer' | 'newcomer';
+    activity: 'high' | 'medium' | 'low';
     expertise: string[];
   };
 }
@@ -28,23 +28,23 @@ export interface UserNode {
 export interface RelationshipEdge {
   userId1: string;
   userId2: string;
-  strength: number;           // 0-10 relationship strength
-  type: "friend" | "colleague" | "acquaintance" | "antagonist";
+  strength: number; // 0-10 relationship strength
+  type: 'friend' | 'colleague' | 'acquaintance' | 'antagonist';
   interactions: number;
   sharedInterests: string[];
   lastInteraction: string;
-  context: "group" | "direct" | "work";
+  context: 'group' | 'direct' | 'work';
 }
 
 export interface GroupContext {
   chatId: number;
   name?: string;
-  members: string[];          // userIds
+  members: string[]; // userIds
   topics: string[];
   dynamics: {
-    cohesion: number;         // 0-10 how tight-knit
-    activity: number;         // messages per day
-    positivity: number;       // sentiment average
+    cohesion: number; // 0-10 how tight-knit
+    activity: number; // messages per day
+    positivity: number; // sentiment average
   };
   createdAt: string;
 }
@@ -61,58 +61,60 @@ class SocialGraph {
   private dirty: boolean = false;
 
   constructor() {
-    this.dataDir = join(configManager.getWorkspacePath(), "social_graph");
+    this.dataDir = join(configManager.getWorkspacePath(), 'social_graph');
     if (!existsSync(this.dataDir)) {
       mkdirSync(this.dataDir, { recursive: true });
     }
-    
+
     this.data = {
       users: new Map(),
       relationships: [],
-      groups: new Map()
+      groups: new Map(),
     };
-    
+
     this.load();
   }
 
   private getDataPath(): string {
-    return join(this.dataDir, "social_graph.json");
+    return join(this.dataDir, 'social_graph.json');
   }
 
   private load(): void {
     const dataPath = this.getDataPath();
     if (existsSync(dataPath)) {
       try {
-        const content = readFileSync(dataPath, "utf-8");
+        const content = readFileSync(dataPath, 'utf-8');
         const parsed = JSON.parse(content);
-        
+
         // Restore Maps
         this.data.users = new Map(parsed.users);
         this.data.relationships = parsed.relationships || [];
         this.data.groups = new Map(parsed.groups);
-        
-        console.log(`🕸️  Social graph loaded: ${this.data.users.size} users, ${this.data.relationships.length} relationships`);
+
+        console.log(
+          `🕸️  Social graph loaded: ${this.data.users.size} users, ${this.data.relationships.length} relationships`
+        );
       } catch (e) {
-        console.warn("Failed to load social graph:", e);
+        console.warn('Failed to load social graph:', e);
       }
     }
   }
 
   save(): void {
     if (!this.dirty) return;
-    
+
     try {
       const data = {
         users: Array.from(this.data.users.entries()),
         relationships: this.data.relationships,
         groups: Array.from(this.data.groups.entries()),
-        lastUpdated: new Date().toISOString()
+        lastUpdated: new Date().toISOString(),
       };
-      
+
       writeFileSync(this.getDataPath(), JSON.stringify(data, null, 2));
       this.dirty = false;
     } catch (e) {
-      console.warn("Failed to save social graph:", e);
+      console.warn('Failed to save social graph:', e);
     }
   }
 
@@ -124,8 +126,8 @@ class SocialGraph {
     chatId: number,
     options: {
       username?: string;
-      mentions?: string[];      // Users mentioned in message
-      sentiment?: number;       // -1 to 1
+      mentions?: string[]; // Users mentioned in message
+      sentiment?: number; // -1 to 1
       topic?: string;
       isReply?: boolean;
       replyToUser?: string;
@@ -144,9 +146,9 @@ class SocialGraph {
         lastActive: now,
         interactionCount: 0,
         traits: {
-          activity: "medium",
-          expertise: []
-        }
+          activity: 'medium',
+          expertise: [],
+        },
       };
       this.data.users.set(userId, user);
     }
@@ -159,17 +161,17 @@ class SocialGraph {
 
     // Update activity level
     if (user.interactionCount > 50) {
-      user.traits.activity = "high";
+      user.traits.activity = 'high';
     } else if (user.interactionCount < 10) {
-      user.traits.activity = "low";
+      user.traits.activity = 'low';
     }
 
     // Track relationships from mentions
     for (const mentionedId of mentions) {
       if (mentionedId !== userId) {
         this.updateRelationship(userId, mentionedId, {
-          context: "group",
-          interaction: "mention"
+          context: 'group',
+          interaction: 'mention',
         });
       }
     }
@@ -177,8 +179,8 @@ class SocialGraph {
     // Track reply relationships
     if (isReply && replyToUser && replyToUser !== userId) {
       this.updateRelationship(userId, replyToUser, {
-        context: "group",
-        interaction: "reply"
+        context: 'group',
+        interaction: 'reply',
       });
     }
 
@@ -186,7 +188,7 @@ class SocialGraph {
     this.updateGroupContext(chatId, userId, topic, sentiment);
 
     this.dirty = true;
-    
+
     // Save periodically (not on every interaction)
     if (user.interactionCount % 10 === 0) {
       this.save();
@@ -200,16 +202,17 @@ class SocialGraph {
     userId1: string,
     userId2: string,
     options: {
-      context: "group" | "direct" | "work";
-      interaction: "mention" | "reply" | "collaboration" | "conflict";
+      context: 'group' | 'direct' | 'work';
+      interaction: 'mention' | 'reply' | 'collaboration' | 'conflict';
     }
   ): void {
     const { context, interaction } = options;
-    
+
     // Find existing relationship
     let rel = this.data.relationships.find(
-      r => (r.userId1 === userId1 && r.userId2 === userId2) ||
-           (r.userId1 === userId2 && r.userId2 === userId1)
+      r =>
+        (r.userId1 === userId1 && r.userId2 === userId2) ||
+        (r.userId1 === userId2 && r.userId2 === userId1)
     );
 
     if (!rel) {
@@ -217,11 +220,11 @@ class SocialGraph {
         userId1,
         userId2,
         strength: 0,
-        type: "acquaintance",
+        type: 'acquaintance',
         interactions: 0,
         sharedInterests: [],
         lastInteraction: new Date().toISOString(),
-        context
+        context,
       };
       this.data.relationships.push(rel);
     }
@@ -232,27 +235,27 @@ class SocialGraph {
 
     // Adjust strength based on interaction type
     switch (interaction) {
-      case "reply":
+      case 'reply':
         rel.strength = Math.min(10, rel.strength + 0.5);
         break;
-      case "mention":
+      case 'mention':
         rel.strength = Math.min(10, rel.strength + 0.3);
         break;
-      case "collaboration":
+      case 'collaboration':
         rel.strength = Math.min(10, rel.strength + 1);
-        rel.type = "colleague";
+        rel.type = 'colleague';
         break;
-      case "conflict":
+      case 'conflict':
         rel.strength = Math.max(0, rel.strength - 1);
-        rel.type = "antagonist";
+        rel.type = 'antagonist';
         break;
     }
 
     // Update relationship type based on strength
-    if (rel.strength > 7 && rel.type !== "antagonist") {
-      rel.type = "friend";
-    } else if (rel.strength > 4 && rel.type === "acquaintance") {
-      rel.type = "colleague";
+    if (rel.strength > 7 && rel.type !== 'antagonist') {
+      rel.type = 'friend';
+    } else if (rel.strength > 4 && rel.type === 'acquaintance') {
+      rel.type = 'colleague';
     }
 
     this.dirty = true;
@@ -278,9 +281,9 @@ class SocialGraph {
         dynamics: {
           cohesion: 5,
           activity: 0,
-          positivity: 0
+          positivity: 0,
         },
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
       };
       this.data.groups.set(chatIdStr, group);
     }
@@ -299,12 +302,12 @@ class SocialGraph {
     }
 
     // Update dynamics
-    group.dynamics.positivity = (group.dynamics.positivity * 0.9) + (sentiment * 0.1);
-    
+    group.dynamics.positivity = group.dynamics.positivity * 0.9 + sentiment * 0.1;
+
     // Cohesion increases with member count up to a point
     const idealSize = 8;
     const sizeFactor = Math.max(0, 1 - Math.abs(group.members.length - idealSize) / idealSize);
-    group.dynamics.cohesion = 5 + (sizeFactor * 5);
+    group.dynamics.cohesion = 5 + sizeFactor * 5;
 
     this.dirty = true;
   }
@@ -318,15 +321,21 @@ class SocialGraph {
     acquaintances: string[];
     closeConnections: string[];
   } {
-    const rels = this.data.relationships.filter(
-      r => r.userId1 === userId || r.userId2 === userId
-    );
+    const rels = this.data.relationships.filter(r => r.userId1 === userId || r.userId2 === userId);
 
     return {
-      friends: rels.filter(r => r.type === "friend").map(r => r.userId1 === userId ? r.userId2 : r.userId1),
-      colleagues: rels.filter(r => r.type === "colleague").map(r => r.userId1 === userId ? r.userId2 : r.userId1),
-      acquaintances: rels.filter(r => r.type === "acquaintance").map(r => r.userId1 === userId ? r.userId2 : r.userId1),
-      closeConnections: rels.filter(r => r.strength > 6).map(r => r.userId1 === userId ? r.userId2 : r.userId1)
+      friends: rels
+        .filter(r => r.type === 'friend')
+        .map(r => (r.userId1 === userId ? r.userId2 : r.userId1)),
+      colleagues: rels
+        .filter(r => r.type === 'colleague')
+        .map(r => (r.userId1 === userId ? r.userId2 : r.userId1)),
+      acquaintances: rels
+        .filter(r => r.type === 'acquaintance')
+        .map(r => (r.userId1 === userId ? r.userId2 : r.userId1)),
+      closeConnections: rels
+        .filter(r => r.strength > 6)
+        .map(r => (r.userId1 === userId ? r.userId2 : r.userId1)),
     };
   }
 
@@ -342,7 +351,7 @@ class SocialGraph {
    */
   getSocialContext(userId: string, chatId: number): string {
     const parts: string[] = [];
-    
+
     // User's role in the group
     const group = this.data.groups.get(String(chatId));
     if (group) {
@@ -350,12 +359,16 @@ class SocialGraph {
       if (memberIndex >= 0) {
         const user = this.data.users.get(userId);
         if (user) {
-          parts.push(`You know this user as ${user.username || userId} (${user.traits.activity} activity, ${user.interactionCount} interactions)`);
+          parts.push(
+            `You know this user as ${user.username || userId} (${user.traits.activity} activity, ${user.interactionCount} interactions)`
+          );
         }
       }
 
       // Group info
-      parts.push(`Group has ${group.members.length} members, topics: ${group.topics.slice(-5).join(", ") || "general chat"}`);
+      parts.push(
+        `Group has ${group.members.length} members, topics: ${group.topics.slice(-5).join(', ') || 'general chat'}`
+      );
     }
 
     // User's connections
@@ -364,24 +377,29 @@ class SocialGraph {
       const names = relationships.closeConnections
         .map(id => this.data.users.get(id)?.username || id)
         .slice(0, 3);
-      parts.push(`User is close with: ${names.join(", ")}`);
+      parts.push(`User is close with: ${names.join(', ')}`);
     }
 
-    return parts.join("\n");
+    return parts.join('\n');
   }
 
   /**
    * Get shared context between users
    */
-  getSharedContext(userId1: string, userId2: string): {
+  getSharedContext(
+    userId1: string,
+    userId2: string
+  ): {
     relationship: RelationshipEdge | null;
     commonInterests: string[];
     interactionHistory: string;
   } {
-    const rel = this.data.relationships.find(
-      r => (r.userId1 === userId1 && r.userId2 === userId2) ||
-           (r.userId1 === userId2 && r.userId2 === userId1)
-    ) || null;
+    const rel =
+      this.data.relationships.find(
+        r =>
+          (r.userId1 === userId1 && r.userId2 === userId2) ||
+          (r.userId1 === userId2 && r.userId2 === userId1)
+      ) || null;
 
     // Find common groups
     const groups1 = Array.from(this.data.groups.values()).filter(g => g.members.includes(userId1));
@@ -391,9 +409,9 @@ class SocialGraph {
     return {
       relationship: rel,
       commonInterests: rel?.sharedInterests || [],
-      interactionHistory: rel 
+      interactionHistory: rel
         ? `Have interacted ${rel.interactions} times, relationship: ${rel.type} (strength: ${rel.strength.toFixed(1)}/10)`
-        : "No prior interactions recorded"
+        : 'No prior interactions recorded',
     };
   }
 
@@ -403,20 +421,21 @@ class SocialGraph {
   detectIssues(chatId: number): string[] {
     const issues: string[] = [];
     const group = this.data.groups.get(String(chatId));
-    
+
     if (!group) return issues;
 
     // Check for low positivity
     if (group.dynamics.positivity < -0.3) {
-      issues.push("Group sentiment is negative");
+      issues.push('Group sentiment is negative');
     }
 
     // Check for exclusion
     const recentInteractions = this.data.relationships.filter(
-      r => this.data.groups.get(String(chatId))?.members.includes(r.userId1) &&
-           this.data.groups.get(String(chatId))?.members.includes(r.userId2)
+      r =>
+        this.data.groups.get(String(chatId))?.members.includes(r.userId1) &&
+        this.data.groups.get(String(chatId))?.members.includes(r.userId2)
     );
-    
+
     const isolatedUsers = group.members.filter(member => {
       const interactions = recentInteractions.filter(
         r => r.userId1 === member || r.userId2 === member
@@ -439,8 +458,9 @@ class SocialGraph {
       users: this.data.users.size,
       relationships: this.data.relationships.length,
       groups: this.data.groups.size,
-      avgRelationshipStrength: this.data.relationships.reduce((sum, r) => sum + r.strength, 0) / 
-        (this.data.relationships.length || 1)
+      avgRelationshipStrength:
+        this.data.relationships.reduce((sum, r) => sum + r.strength, 0) /
+        (this.data.relationships.length || 1),
     };
   }
 
@@ -449,7 +469,7 @@ class SocialGraph {
    */
   cleanup(maxAge: number = 90 * 24 * 60 * 60 * 1000): void {
     const now = Date.now();
-    
+
     // Remove old inactive users
     for (const [userId, user] of this.data.users.entries()) {
       const lastActive = new Date(user.lastActive).getTime();

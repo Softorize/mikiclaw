@@ -1,7 +1,7 @@
-import { configManager } from "../config/manager.js";
-import { join } from "node:path";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { getMikiclawDir } from "./paths.js";
+import { configManager } from '../config/manager.js';
+import { join } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { getMikiclawDir } from './paths.js';
 
 interface RateLimitEntry {
   count: number;
@@ -14,7 +14,7 @@ interface RateLimitData {
   entries: Record<string, RateLimitEntry>;
 }
 
-const RATE_LIMIT_FILE = "rate_limits.json";
+const RATE_LIMIT_FILE = 'rate_limits.json';
 const DATA_VERSION = 1;
 const MAX_AGE_MS = 5 * 60 * 1000;
 
@@ -41,7 +41,7 @@ class RateLimiter {
     }
 
     try {
-      const raw = readFileSync(this.dataPath, "utf-8");
+      const raw = readFileSync(this.dataPath, 'utf-8');
       const data: RateLimitData = JSON.parse(raw);
 
       if (data.version !== DATA_VERSION) {
@@ -59,7 +59,7 @@ class RateLimiter {
     try {
       const data: RateLimitData = {
         version: DATA_VERSION,
-        entries: Object.fromEntries(this.limits)
+        entries: Object.fromEntries(this.limits),
       };
       writeFileSync(this.dataPath, JSON.stringify(data, null, 2), { mode: 0o600 });
     } catch {
@@ -104,7 +104,7 @@ class RateLimiter {
       entry = {
         count: 0,
         resetTime: now + 60000,
-        lastAccess: now
+        lastAccess: now,
       };
       this.limits.set(key, entry);
     }
@@ -144,14 +144,14 @@ class RateLimiter {
       return {
         remaining: maxRequests,
         resetTime: now + 60000,
-        limit: maxRequests
+        limit: maxRequests,
       };
     }
 
     return {
       remaining: Math.max(0, maxRequests - entry.count),
       resetTime: entry.resetTime,
-      limit: maxRequests
+      limit: maxRequests,
     };
   }
 

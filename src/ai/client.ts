@@ -1,24 +1,24 @@
-import { configManager } from "../config/manager.js";
-import { logger } from "../utils/logger.js";
+import { configManager } from '../config/manager.js';
+import { logger } from '../utils/logger.js';
 
-export type AIModel = 
-  | "claude-sonnet-4-20250514" 
-  | "claude-3-5-sonnet-20241022"
-  | "claude-3-opus-20240229"
-  | "kimi-k2.5"
-  | "kimi-k2-thinking"
-  | "MiniMax-M2.5"
-  | "MiniMax-M2.5-highspeed"
-  | "MiniMax-M2.1"
-  | "gpt-4o"
-  | "gpt-4o-mini"
-  | "gpt-4-turbo"
-  | "gpt-4"
-  | "gpt-3.5-turbo"
-  | "local-model";
+export type AIModel =
+  | 'claude-sonnet-4-20250514'
+  | 'claude-3-5-sonnet-20241022'
+  | 'claude-3-opus-20240229'
+  | 'kimi-k2.5'
+  | 'kimi-k2-thinking'
+  | 'MiniMax-M2.5'
+  | 'MiniMax-M2.5-highspeed'
+  | 'MiniMax-M2.1'
+  | 'gpt-4o'
+  | 'gpt-4o-mini'
+  | 'gpt-4-turbo'
+  | 'gpt-4'
+  | 'gpt-3.5-turbo'
+  | 'local-model';
 
 export interface AIMessage {
-  role: "user" | "assistant" | "system";
+  role: 'user' | 'assistant' | 'system';
   content: string;
 }
 
@@ -45,29 +45,41 @@ export interface AIProvider {
   models: AIModel[];
   createCompletion(
     messages: AIMessage[],
-    tools?:AITool[],
+    tools?: AITool[],
     systemPrompt?: string
   ): Promise<AIResponse>;
 }
 
-export type AIRoutingStrategy = "quality-first" | "speed-first" | "cost-first" | "balanced";
-type TaskKind = "coding" | "summarization" | "tool-heavy" | "analysis" | "general";
+export type AIRoutingStrategy = 'quality-first' | 'speed-first' | 'cost-first' | 'balanced';
+type TaskKind = 'coding' | 'summarization' | 'tool-heavy' | 'analysis' | 'general';
 
 export function detectTaskKind(messages: AIMessage[], tools?: AITool[]): TaskKind {
-  const latestUserMessage = [...messages].reverse().find((m) => m.role === "user")?.content.toLowerCase() || "";
-  if (tools && tools.length > 0 && /(run|execute|tool|command|terminal|search|browse|file)/i.test(latestUserMessage)) {
-    return "tool-heavy";
+  const latestUserMessage =
+    [...messages]
+      .reverse()
+      .find(m => m.role === 'user')
+      ?.content.toLowerCase() || '';
+  if (
+    tools &&
+    tools.length > 0 &&
+    /(run|execute|tool|command|terminal|search|browse|file)/i.test(latestUserMessage)
+  ) {
+    return 'tool-heavy';
   }
   if (/(summarize|summary|tl;dr|brief|shorten|condense)/i.test(latestUserMessage)) {
-    return "summarization";
+    return 'summarization';
   }
-  if (/(code|bug|debug|typescript|javascript|python|build|test|refactor|function|class)/i.test(latestUserMessage)) {
-    return "coding";
+  if (
+    /(code|bug|debug|typescript|javascript|python|build|test|refactor|function|class)/i.test(
+      latestUserMessage
+    )
+  ) {
+    return 'coding';
   }
   if (/(analyze|compare|tradeoff|architecture|design|plan|strategy)/i.test(latestUserMessage)) {
-    return "analysis";
+    return 'analysis';
   }
-  return "general";
+  return 'general';
 }
 
 function uniqueProviders(items: string[]): string[] {
@@ -91,33 +103,33 @@ export function buildProviderPlan(options: {
 }): string[] {
   const { primary, strategy, fallbackProviders, availableProviders, taskKind } = options;
 
-  const qualityOrder = ["anthropic", "openai", "kimi", "minimax", "local"];
-  const speedOrder = ["openai", "minimax", "kimi", "anthropic", "local"];
-  const costOrder = ["local", "minimax", "kimi", "openai", "anthropic"];
+  const qualityOrder = ['anthropic', 'openai', 'kimi', 'minimax', 'local'];
+  const speedOrder = ['openai', 'minimax', 'kimi', 'anthropic', 'local'];
+  const costOrder = ['local', 'minimax', 'kimi', 'openai', 'anthropic'];
 
   let strategyOrder = qualityOrder;
-  if (strategy === "speed-first") {
+  if (strategy === 'speed-first') {
     strategyOrder = speedOrder;
-  } else if (strategy === "cost-first") {
+  } else if (strategy === 'cost-first') {
     strategyOrder = costOrder;
   }
 
   const taskBias: Record<TaskKind, string[]> = {
-    coding: ["anthropic", "openai", "kimi"],
-    summarization: ["openai", "anthropic", "minimax"],
-    "tool-heavy": ["openai", "anthropic", "minimax"],
-    analysis: ["anthropic", "openai", "kimi"],
-    general: []
+    coding: ['anthropic', 'openai', 'kimi'],
+    summarization: ['openai', 'anthropic', 'minimax'],
+    'tool-heavy': ['openai', 'anthropic', 'minimax'],
+    analysis: ['anthropic', 'openai', 'kimi'],
+    general: [],
   };
 
-  if (strategy === "balanced") {
+  if (strategy === 'balanced') {
     const ranked = uniqueProviders([
       primary,
       ...taskBias[taskKind],
       ...fallbackProviders,
-      ...strategyOrder
-    ]).filter((provider) => availableProviders.includes(provider));
-    const primaryRest = ranked.filter((provider) => provider !== primary);
+      ...strategyOrder,
+    ]).filter(provider => availableProviders.includes(provider));
+    const primaryRest = ranked.filter(provider => provider !== primary);
     return [primary, ...primaryRest];
   }
 
@@ -125,21 +137,21 @@ export function buildProviderPlan(options: {
     ...taskBias[taskKind],
     ...strategyOrder,
     primary,
-    ...fallbackProviders
-  ]).filter((provider) => availableProviders.includes(provider));
+    ...fallbackProviders,
+  ]).filter(provider => availableProviders.includes(provider));
 }
 
 class AIClient {
   private providers: Map<string, AIProvider> = new Map();
-  private defaultProvider: string = "anthropic";
+  private defaultProvider: string = 'anthropic';
 
   constructor() {
     this.registerDefaultProviders();
   }
 
   private registerDefaultProviders(): void {
-    import("./providers/anthropic.js").then(({ anthropicProvider }) => {
-      this.providers.set("anthropic", anthropicProvider);
+    import('./providers/anthropic.js').then(({ anthropicProvider }) => {
+      this.providers.set('anthropic', anthropicProvider);
     });
   }
 
@@ -156,7 +168,7 @@ class AIClient {
 
   async createCompletion(
     messages: AIMessage[],
-    tools?:AITool[],
+    tools?: AITool[],
     systemPrompt?: string
   ): Promise<AIResponse> {
     const config = configManager.load();
@@ -179,11 +191,11 @@ class AIClient {
       strategy: routing.strategy,
       fallbackProviders: routing.fallbackProviders,
       availableProviders,
-      taskKind
+      taskKind,
     });
 
     if (providerPlan.length === 0) {
-      throw new Error("No AI providers are available for routing");
+      throw new Error('No AI providers are available for routing');
     }
 
     const failures: string[] = [];
@@ -193,32 +205,32 @@ class AIClient {
         continue;
       }
       try {
-        const model = config.ai?.model as AIModel || provider.models[0];
-        logger.info("AI provider attempt", {
+        const model = (config.ai?.model as AIModel) || provider.models[0];
+        logger.info('AI provider attempt', {
           provider: plannedProvider,
           strategy: routing.strategy,
           taskKind,
-          model
+          model,
         });
         const response = await provider.createCompletion(messages, tools, systemPrompt);
         return {
           ...response,
           provider: plannedProvider,
-          attempts: [...failures, plannedProvider]
+          attempts: [...failures, plannedProvider],
         };
       } catch (error) {
         const reason = `${plannedProvider}: ${error instanceof Error ? error.message : String(error)}`;
         failures.push(reason);
-        logger.warn("AI provider failed, trying fallback", {
+        logger.warn('AI provider failed, trying fallback', {
           provider: plannedProvider,
           strategy: routing.strategy,
           taskKind,
-          error: reason
+          error: reason,
         });
       }
     }
 
-    throw new Error(`All AI providers failed. Attempts: ${failures.join(" | ")}`);
+    throw new Error(`All AI providers failed. Attempts: ${failures.join(' | ')}`);
   }
 
   getProvider(name: string): AIProvider | undefined {

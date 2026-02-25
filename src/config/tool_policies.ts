@@ -1,46 +1,54 @@
-import { configManager } from "./manager.js";
+import { configManager } from './manager.js';
 
-export type ToolGroup = 
-  | "runtime"
-  | "filesystem"
-  | "web"
-  | "messaging"
-  | "system"
-  | "development"
-  | "custom";
+export type ToolGroup =
+  | 'runtime'
+  | 'filesystem'
+  | 'web'
+  | 'messaging'
+  | 'system'
+  | 'development'
+  | 'custom';
 
 export interface ToolPolicyConfig {
-  profile: "minimal" | "coding" | "messaging" | "full" | "custom";
+  profile: 'minimal' | 'coding' | 'messaging' | 'full' | 'custom';
   groups: Record<ToolGroup, boolean>;
   allowlist: string[];
   blocklist: string[];
 }
 
 const TOOL_GROUPS: Record<string, string[]> = {
-  runtime: ["bash", "exec", "process", "nodejs", "applescript"],
-  filesystem: ["read_file", "write_file", "list_directory", "glob", "grep", "edit_file"],
+  runtime: ['bash', 'exec', 'process', 'nodejs', 'applescript'],
+  filesystem: ['read_file', 'write_file', 'list_directory', 'glob', 'grep', 'edit_file'],
   web: [
-    "search",
-    "web_search",
-    "web_fetch",
-    "curl",
-    "browser_navigate",
-    "browser_screenshot",
-    "browser_click",
-    "browser_type",
-    "browser_content",
-    "browser_evaluate",
-    "browser_fill",
-    "browser_select",
-    "browser_scroll",
-    "browser_back",
-    "browser_forward",
-    "browser_snapshot"
+    'search',
+    'web_search',
+    'web_fetch',
+    'curl',
+    'browser_navigate',
+    'browser_screenshot',
+    'browser_click',
+    'browser_type',
+    'browser_content',
+    'browser_evaluate',
+    'browser_fill',
+    'browser_select',
+    'browser_scroll',
+    'browser_back',
+    'browser_forward',
+    'browser_snapshot',
   ],
-  messaging: ["message", "send_message"],
-  system: ["get_system_info", "get_env", "get_config"],
-  development: ["git", "npm", "node", "python", "docker", "gac_list_accounts", "gac_list_properties"],
-  custom: []
+  messaging: ['message', 'send_message'],
+  system: ['get_system_info', 'get_env', 'get_config'],
+  development: [
+    'git',
+    'npm',
+    'node',
+    'python',
+    'docker',
+    'gac_list_accounts',
+    'gac_list_properties',
+  ],
+  custom: [],
 };
 
 const PROFILES: Record<string, Record<ToolGroup, boolean>> = {
@@ -51,7 +59,7 @@ const PROFILES: Record<string, Record<ToolGroup, boolean>> = {
     messaging: false,
     system: true,
     development: false,
-    custom: false
+    custom: false,
   },
   coding: {
     runtime: true,
@@ -60,7 +68,7 @@ const PROFILES: Record<string, Record<ToolGroup, boolean>> = {
     messaging: false,
     system: true,
     development: true,
-    custom: true
+    custom: true,
   },
   messaging: {
     runtime: false,
@@ -69,7 +77,7 @@ const PROFILES: Record<string, Record<ToolGroup, boolean>> = {
     messaging: true,
     system: true,
     development: false,
-    custom: true
+    custom: true,
   },
   full: {
     runtime: true,
@@ -78,24 +86,24 @@ const PROFILES: Record<string, Record<ToolGroup, boolean>> = {
     messaging: true,
     system: true,
     development: true,
-    custom: true
-  }
+    custom: true,
+  },
 };
 
 export function getToolPolicyConfig(): ToolPolicyConfig {
   const config = configManager.load();
-  const security = config.security as any || {};
-  
-  const profile = (security.toolProfile as string) || "coding";
+  const security = (config.security as any) || {};
+
+  const profile = (security.toolProfile as string) || 'coding';
   const groups = PROFILES[profile] || PROFILES.coding;
   const allowedTools = Array.isArray(security.allowedTools) ? security.allowedTools : [];
   const blockedTools = Array.isArray(security.blockedTools) ? security.blockedTools : [];
-  
+
   return {
-    profile: profile as ToolPolicyConfig["profile"],
+    profile: profile as ToolPolicyConfig['profile'],
     groups,
     allowlist: allowedTools,
-    blocklist: blockedTools
+    blocklist: blockedTools,
   };
 }
 
@@ -107,8 +115,8 @@ export function isToolAllowed(toolName: string): { allowed: boolean; reason?: st
   }
 
   if (policy.allowlist.length > 0) {
-    const isAllowed = policy.allowlist.some(allowed => 
-      toolName === allowed || toolName.startsWith(allowed + "_")
+    const isAllowed = policy.allowlist.some(
+      allowed => toolName === allowed || toolName.startsWith(allowed + '_')
     );
     if (!isAllowed) {
       return { allowed: false, reason: `Tool '${toolName}' not in allowlist` };

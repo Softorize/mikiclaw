@@ -17,7 +17,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "lint": "eslint src/**/*.ts",
-    "format": "prettier --write src/**/*.ts",
+    "format": "prettier --write \"src/**/*.ts\" --ignore-path .prettierignore",
     "type-check": "tsc --noEmit"
   },
   "keywords": [
@@ -57,9 +57,11 @@
   "devDependencies": {
     "@types/node": "^22.19.11",
     "@vitest/coverage-v8": "^4.0.18",
+    "eslint": "^9.26.0",
     "prettier": "^3.5.3",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3",
+    "typescript-eslint": "^8.31.0",
     "vitest": "^4.0.18"
   },
   "engines": {

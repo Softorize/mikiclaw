@@ -1,35 +1,35 @@
-import { configManager } from "../config/manager.js";
-import { loadSoul } from "../personality/soul.js";
-import { memorySystem } from "../personality/memory.js";
-import { emotionalState } from "../personality/emotional_state.js";
-import { aiVoice } from "../personality/voice.js";
-import { socialGraph } from "../personality/social_graph.js";
-import { patternDetector } from "../personality/patterns.js";
-import { embeddingService } from "../personality/embeddings.js";
-import { getTools } from "./tools.js";
-import { rateLimiter } from "../utils/rate_limiter.js";
-import { loopDetector } from "../utils/loop_detector.js";
-import { isToolAllowed } from "../config/tool_policies.js";
-import { logger } from "../utils/logger.js";
-import { aiClient, AIMessage } from "../ai/client.js";
-import { anthropicProvider } from "../ai/providers/anthropic.js";
-import { kimiProvider } from "../ai/providers/kimi.js";
-import { minimaxProvider } from "../ai/providers/minimax.js";
-import { openaiProvider } from "../ai/providers/openai.js";
-import { localProvider } from "../ai/providers/local.js";
-import { sessionManager } from "../session/manager.js";
-import { existsSync, readFileSync, writeFileSync, mkdirSync, statSync } from "node:fs";
-import { join, dirname } from "node:path";
-import { execa } from "execa";
-import { sanitizePath, validateCommand, validatePattern } from "../utils/validation.js";
-import { accessControl } from "../security/access_control.js";
-import { observabilityStore } from "../observability/metrics.js";
+import { configManager } from '../config/manager.js';
+import { loadSoul } from '../personality/soul.js';
+import { memorySystem } from '../personality/memory.js';
+import { emotionalState } from '../personality/emotional_state.js';
+import { aiVoice } from '../personality/voice.js';
+import { socialGraph } from '../personality/social_graph.js';
+import { patternDetector } from '../personality/patterns.js';
+import { embeddingService } from '../personality/embeddings.js';
+import { getTools } from './tools.js';
+import { rateLimiter } from '../utils/rate_limiter.js';
+import { loopDetector } from '../utils/loop_detector.js';
+import { isToolAllowed } from '../config/tool_policies.js';
+import { logger } from '../utils/logger.js';
+import { aiClient, AIMessage } from '../ai/client.js';
+import { anthropicProvider } from '../ai/providers/anthropic.js';
+import { kimiProvider } from '../ai/providers/kimi.js';
+import { minimaxProvider } from '../ai/providers/minimax.js';
+import { openaiProvider } from '../ai/providers/openai.js';
+import { localProvider } from '../ai/providers/local.js';
+import { sessionManager } from '../session/manager.js';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, statSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { execa } from 'execa';
+import { sanitizePath, validateCommand, validatePattern } from '../utils/validation.js';
+import { accessControl } from '../security/access_control.js';
+import { observabilityStore } from '../observability/metrics.js';
 
-aiClient.registerProvider("anthropic", anthropicProvider);
-aiClient.registerProvider("kimi", kimiProvider);
-aiClient.registerProvider("minimax", minimaxProvider);
-aiClient.registerProvider("openai", openaiProvider);
-aiClient.registerProvider("local", localProvider);
+aiClient.registerProvider('anthropic', anthropicProvider);
+aiClient.registerProvider('kimi', kimiProvider);
+aiClient.registerProvider('minimax', minimaxProvider);
+aiClient.registerProvider('openai', openaiProvider);
+aiClient.registerProvider('local', localProvider);
 
 interface MessageContext {
   message: string;
@@ -49,7 +49,7 @@ function extractLikelyUrl(message: string): string | null {
   if (!domainOnly) {
     return null;
   }
-  return domainOnly.startsWith("http://") || domainOnly.startsWith("https://")
+  return domainOnly.startsWith('http://') || domainOnly.startsWith('https://')
     ? domainOnly
     : `https://${domainOnly}`;
 }
@@ -58,16 +58,22 @@ function hasWebIntent(message: string): boolean {
   if (extractLikelyUrl(message)) {
     return true;
   }
-  return /\b(search|web|internet|browse|open|visit|website|site|look up|find online|research|linkedin|profile url)\b/i.test(message);
+  return /\b(search|web|internet|browse|open|visit|website|site|look up|find online|research|linkedin|profile url)\b/i.test(
+    message
+  );
 }
 
 function hasLocalMachineIntent(message: string): boolean {
-  return /\b(applescript|osascript|mac|macos|finder|safari|frontmost|desktop|system events|open app|close app|volume|clipboard|gac|google analytics|ga4)\b/i.test(message);
+  return /\b(applescript|osascript|mac|macos|finder|safari|frontmost|desktop|system events|open app|close app|volume|clipboard|gac|google analytics|ga4)\b/i.test(
+    message
+  );
 }
 
 function hasGacPropertiesIntent(message: string): boolean {
-  return /\b(gac|google analytics|ga4)\b/i.test(message)
-    && /\b(property|properties|account|accounts|list)\b/i.test(message);
+  return (
+    /\b(gac|google analytics|ga4)\b/i.test(message) &&
+    /\b(property|properties|account|accounts|list)\b/i.test(message)
+  );
 }
 
 function cleanUserFacingResponse(text: string): string {
@@ -76,28 +82,37 @@ function cleanUserFacingResponse(text: string): string {
   }
 
   let cleaned = text
-    .replace(/(^|\n)🔧 \*Executing:[^\n]*\n?/g, "\n")
-    .replace(/\n{3,}/g, "\n\n")
+    .replace(/(^|\n)🔧 \*Executing:[^\n]*\n?/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
     .trim();
 
   // Strip leading "I'll do X" scaffolding when followed by actual results.
-  cleaned = cleaned.replace(
-    /^(?:I('|’)ll|Let me)\s.+?(?:\n\n|\n)(?=(?:📈|📊|✅|❌|- |\d+\. |\|))/i,
-    ""
-  ).trim();
+  cleaned = cleaned
+    .replace(/^(?:I('|’)ll|Let me)\s.+?(?:\n\n|\n)(?=(?:📈|📊|✅|❌|- |\d+\. |\|))/i, '')
+    .trim();
 
   return cleaned;
 }
 
 function modelDeclinedBrowsing(content: string): boolean {
-  return /(can't|cannot|unable|do not|don't).{0,120}(browse|open websites?|access websites?|browser tools?)/i.test(content)
-    || /browser tools? (aren't|are not) available/i.test(content)
-    || /not available in this environment/i.test(content);
+  return (
+    /(can't|cannot|unable|do not|don't).{0,120}(browse|open websites?|access websites?|browser tools?)/i.test(
+      content
+    ) ||
+    /browser tools? (aren't|are not) available/i.test(content) ||
+    /not available in this environment/i.test(content)
+  );
 }
 
 function modelPretendsToolExecution(content: string): boolean {
-  return /Executing:\s*(browser_|search|web_search|web_fetch|curl|read_file|write_file|bash|git|applescript|gac_list_accounts|gac_list_properties)\b/i.test(content)
-    || /\b(browser_navigate|browser_content|browser_screenshot|browser_click|browser_type|browser_evaluate|applescript|gac_list_accounts|gac_list_properties)\b/i.test(content);
+  return (
+    /Executing:\s*(browser_|search|web_search|web_fetch|curl|read_file|write_file|bash|git|applescript|gac_list_accounts|gac_list_properties)\b/i.test(
+      content
+    ) ||
+    /\b(browser_navigate|browser_content|browser_screenshot|browser_click|browser_type|browser_evaluate|applescript|gac_list_accounts|gac_list_properties)\b/i.test(
+      content
+    )
+  );
 }
 
 function extractAppleScriptFromContent(content: string): string | null {
@@ -115,19 +130,19 @@ function extractAppleScriptFromContent(content: string): string | null {
 }
 
 function buildAppleScriptPathPrefix(): string {
-  const home = process.env.HOME || "";
+  const home = process.env.HOME || '';
   const pathParts = [
-    "/opt/homebrew/bin",
-    "/usr/local/bin",
-    "/usr/bin",
-    "/bin",
-    "/usr/sbin",
-    "/sbin",
-    home ? `${home}/go/bin` : "",
-    home ? `${home}/.local/bin` : "",
-    home ? `${home}/.npm-global/bin` : ""
+    '/opt/homebrew/bin',
+    '/usr/local/bin',
+    '/usr/bin',
+    '/bin',
+    '/usr/sbin',
+    '/sbin',
+    home ? `${home}/go/bin` : '',
+    home ? `${home}/.local/bin` : '',
+    home ? `${home}/.npm-global/bin` : '',
   ].filter(Boolean);
-  return `export PATH=${pathParts.join(":")}; `;
+  return `export PATH=${pathParts.join(':')}; `;
 }
 
 function injectPathForDoShellScript(script: string): string {
@@ -142,18 +157,24 @@ function injectPathForDoShellScript(script: string): string {
   return script.replace(/do\s+shell\s+script\s+"/gi, `do shell script "${prefix}`);
 }
 
-function buildRecoveryToolCalls(message: string): Array<{ name: string; input: Record<string, unknown>; id: string }> {
+function buildRecoveryToolCalls(
+  message: string
+): Array<{ name: string; input: Record<string, unknown>; id: string }> {
   const url = extractLikelyUrl(message);
 
   if (url) {
     return [
-      { name: "browser_navigate", input: { url }, id: `recovery-nav-${Date.now()}` },
-      { name: "browser_content", input: { maxChars: 6000 }, id: `recovery-content-${Date.now()}` }
+      { name: 'browser_navigate', input: { url }, id: `recovery-nav-${Date.now()}` },
+      { name: 'browser_content', input: { maxChars: 6000 }, id: `recovery-content-${Date.now()}` },
     ];
   }
 
   return [
-    { name: "search", input: { query: message.slice(0, 300) }, id: `recovery-search-${Date.now()}` }
+    {
+      name: 'search',
+      input: { query: message.slice(0, 300) },
+      id: `recovery-search-${Date.now()}`,
+    },
   ];
 }
 
@@ -162,16 +183,16 @@ function isLikelySubmitSelector(selector: string): boolean {
 }
 
 function requiresToolApproval(toolName: string, input: Record<string, unknown>): boolean {
-  if (toolName === "bash" || toolName === "write_file" || toolName === "applescript") {
+  if (toolName === 'bash' || toolName === 'write_file' || toolName === 'applescript') {
     return true;
   }
 
-  if (toolName === "browser_fill") {
+  if (toolName === 'browser_fill') {
     return true;
   }
 
-  if (toolName === "browser_click") {
-    const selector = String(input.selector || "");
+  if (toolName === 'browser_click') {
+    const selector = String(input.selector || '');
     return isLikelySubmitSelector(selector);
   }
 
@@ -179,21 +200,21 @@ function requiresToolApproval(toolName: string, input: Record<string, unknown>):
 }
 
 function summarizeRiskyToolAction(toolName: string, input: Record<string, unknown>): string {
-  if (toolName === "bash") {
-    const command = String(input.command || "").slice(0, 120);
+  if (toolName === 'bash') {
+    const command = String(input.command || '').slice(0, 120);
     return `shell command: ${command}`;
   }
-  if (toolName === "write_file") {
-    return `write file: ${String(input.path || "").slice(0, 120)}`;
+  if (toolName === 'write_file') {
+    return `write file: ${String(input.path || '').slice(0, 120)}`;
   }
-  if (toolName === "browser_fill") {
-    return "fill browser form fields";
+  if (toolName === 'browser_fill') {
+    return 'fill browser form fields';
   }
-  if (toolName === "browser_click") {
-    return `click potentially destructive control: ${String(input.selector || "").slice(0, 120)}`;
+  if (toolName === 'browser_click') {
+    return `click potentially destructive control: ${String(input.selector || '').slice(0, 120)}`;
   }
-  if (toolName === "applescript") {
-    return "run AppleScript machine action";
+  if (toolName === 'applescript') {
+    return 'run AppleScript machine action';
   }
   return `${toolName} action`;
 }
@@ -202,13 +223,17 @@ function estimateTokensFromText(text: string): number {
   return Math.max(1, Math.ceil(text.length / 4));
 }
 
-function estimateCostUsd(provider: string | undefined, inputTokens: number, outputTokens: number): number {
+function estimateCostUsd(
+  provider: string | undefined,
+  inputTokens: number,
+  outputTokens: number
+): number {
   const ratesPer1K: Record<string, { input: number; output: number }> = {
     anthropic: { input: 0.003, output: 0.015 },
     openai: { input: 0.0025, output: 0.01 },
     kimi: { input: 0.0015, output: 0.006 },
     minimax: { input: 0.001, output: 0.004 },
-    local: { input: 0, output: 0 }
+    local: { input: 0, output: 0 },
   };
   const rate = provider ? ratesPer1K[provider] : undefined;
   if (!rate) {
@@ -219,7 +244,11 @@ function estimateCostUsd(provider: string | undefined, inputTokens: number, outp
 
 function toolCallSucceeded(result: string): boolean {
   const normalized = result.trim().toLowerCase();
-  return !(normalized.startsWith("error:") || normalized.startsWith("⛔") || normalized.includes("failed"));
+  return !(
+    normalized.startsWith('error:') ||
+    normalized.startsWith('⛔') ||
+    normalized.includes('failed')
+  );
 }
 
 /**
@@ -229,48 +258,55 @@ function toolCallSucceeded(result: string): boolean {
  * - Emotional state awareness
  * - User communication style preferences
  */
-async function buildSystemPrompt(userId: string, userMessage: string, username?: string, chatId?: number): Promise<string> {
+async function buildSystemPrompt(
+  userId: string,
+  userMessage: string,
+  username?: string,
+  chatId?: number
+): Promise<string> {
   const soul = loadSoul();
-  
+
   // Get comprehensive personalized context (includes memories, facts, preferences)
   const personalizedContext = await memorySystem.getPersonalizedContext(userId, userMessage);
-  
+
   // Get user's communication style preferences
   const profiler = memorySystem.getUserProfiler(userId);
   const stylePrompt = profiler.getPersonalityPrompt();
-  
+
   // Get current emotional state
   const emotion = emotionalState.getCurrent(userId);
-  const energyLevel = emotion.arousal > 0.6 ? "high" : emotion.arousal > 0.3 ? "moderate" : "calm";
-  
+  const energyLevel = emotion.arousal > 0.6 ? 'high' : emotion.arousal > 0.3 ? 'moderate' : 'calm';
+
   // Get connected memories (semantically related)
   const connectedMemories = await memorySystem.getConnectedContext(userMessage, userId);
-  
+
   // Get AI voice guidelines for consistency
   const voiceGuidelines = aiVoice.getVoiceGuidelines(userId);
-  
+
   // Get pattern insights for current context
   const now = new Date();
   const relevantPatterns = patternDetector.getRelevantPatterns(userId, {
     timeOfDay: now.getHours(),
     dayOfWeek: now.getDay(),
-    currentSentiment: emotion.valence
+    currentSentiment: emotion.valence,
   });
-  
+
   // Get pattern context
-  const patternContext = relevantPatterns.length > 0
-    ? relevantPatterns
-        .slice(0, 3)
-        .map(p => `- ${p.pattern.description}${p.suggestion ? ` (${p.suggestion})` : ""}`)
-        .join("\n")
-    : "";
-  
+  const patternContext =
+    relevantPatterns.length > 0
+      ? relevantPatterns
+          .slice(0, 3)
+          .map(p => `- ${p.pattern.description}${p.suggestion ? ` (${p.suggestion})` : ''}`)
+          .join('\n')
+      : '';
+
   // Determine conversation mode based on emotional state
-  const conversationMode = emotion.valence > 0.3 
-    ? "positive and encouraging" 
-    : emotion.valence < -0.3 
-      ? "supportive and empathetic" 
-      : "neutral and helpful";
+  const conversationMode =
+    emotion.valence > 0.3
+      ? 'positive and encouraging'
+      : emotion.valence < -0.3
+        ? 'supportive and empathetic'
+        : 'neutral and helpful';
   const machineControlGranted = chatId ? accessControl.hasAppleScriptAccess(userId, chatId) : false;
 
   return `You are an AI assistant with a distinct personality and memory. You are having a conversation with a specific user whose preferences and history you remember.
@@ -278,11 +314,11 @@ async function buildSystemPrompt(userId: string, userMessage: string, username?:
 # Core Identity (SOUL.md)
 ${soul}
 
-${personalizedContext ? `# User Context\n${personalizedContext}\n` : ""}
+${personalizedContext ? `# User Context\n${personalizedContext}\n` : ''}
 
-${connectedMemories ? `# Related Context\n${connectedMemories}\n` : ""}
+${connectedMemories ? `# Related Context\n${connectedMemories}\n` : ''}
 
-${patternContext ? `# User Patterns\n${patternContext}\n` : ""}
+${patternContext ? `# User Patterns\n${patternContext}\n` : ''}
 
 # Communication Style Adaptations
 ${stylePrompt || "- Use a friendly, natural tone\n- Adapt to the user's communication style"}
@@ -291,16 +327,16 @@ ${stylePrompt || "- Use a friendly, natural tone\n- Adapt to the user's communic
 ${voiceGuidelines}
 
 # Current Interaction Context
-- Username/handle: ${username || "unknown"}
+- Username/handle: ${username || 'unknown'}
 - Conversation mood: ${conversationMode}
 - Energy level: ${energyLevel}
 - User emotional state: ${emotion.currentMood}
-- AppleScript machine control granted: ${machineControlGranted ? "yes" : "no"}
+- AppleScript machine control granted: ${machineControlGranted ? 'yes' : 'no'}
 
 # Response Guidelines
 - Reference previous conversations naturally when relevant (e.g., "I remember you mentioned...", "Last time we talked about...")
-- ${emotion.valence > 0.3 ? "Match the user's positive energy" : emotion.valence < -0.3 ? "Be supportive and understanding" : "Be helpful and professional"}
-- ${emotion.arousal > 0.6 ? "Keep responses energetic and engaging" : "Keep responses calm and focused"}
+- ${emotion.valence > 0.3 ? "Match the user's positive energy" : emotion.valence < -0.3 ? 'Be supportive and understanding' : 'Be helpful and professional'}
+- ${emotion.arousal > 0.6 ? 'Keep responses energetic and engaging' : 'Keep responses calm and focused'}
 - Connect new information to what you know about the user
 - If the user mentions something new that relates to past topics, make the connection
 - Ask follow-up questions that show you're paying attention to their ongoing story
@@ -322,7 +358,11 @@ ${voiceGuidelines}
 }
 
 export async function runAgent(ctx: MessageContext): Promise<string> {
-  const requestId = observabilityStore.startRequest(ctx.userId, ctx.chatId, ctx.channel || "telegram");
+  const requestId = observabilityStore.startRequest(
+    ctx.userId,
+    ctx.chatId,
+    ctx.channel || 'telegram'
+  );
   let observedProvider: string | undefined = undefined;
   let estimatedInputTokens = 0;
   const finishRequest = (text: string, success: boolean): string => {
@@ -332,123 +372,142 @@ export async function runAgent(ctx: MessageContext): Promise<string> {
       success,
       estimatedInputTokens,
       estimatedOutputTokens: outputTokens,
-      estimatedCostUsd: estimateCostUsd(observedProvider, estimatedInputTokens, outputTokens)
+      estimatedCostUsd: estimateCostUsd(observedProvider, estimatedInputTokens, outputTokens),
     });
     return text;
   };
 
   if (!rateLimiter.isAllowed(ctx.userId)) {
-    logger.warn("Rate limit exceeded", { userId: ctx.userId });
-    return finishRequest("⏳ Too many requests. Please wait a moment before trying again.", false);
+    logger.warn('Rate limit exceeded', { userId: ctx.userId });
+    return finishRequest('⏳ Too many requests. Please wait a moment before trying again.', false);
   }
 
   if (!configManager.isConfigured()) {
-    return finishRequest("⚠️ AI not configured. Run `npm run setup`.", false);
+    return finishRequest('⚠️ AI not configured. Run `npm run setup`.', false);
   }
 
-  const session = sessionManager.getOrCreateSession(ctx.chatId, ctx.userId, ctx.username, ctx.channel || "telegram");
-  
+  const session = sessionManager.getOrCreateSession(
+    ctx.chatId,
+    ctx.userId,
+    ctx.username,
+    ctx.channel || 'telegram'
+  );
+
   const loopCheck = loopDetector.detect(ctx.chatId);
   if (loopCheck.shouldStop) {
-    logger.warn("Loop detected, stopping", { chatId: ctx.chatId, reason: loopCheck.reason });
+    logger.warn('Loop detected, stopping', { chatId: ctx.chatId, reason: loopCheck.reason });
     loopDetector.clearHistory(ctx.chatId);
-    return finishRequest(`⛔ Detected a loop and stopped: ${loopCheck.reason}. Let's try something different!`, false);
+    return finishRequest(
+      `⛔ Detected a loop and stopped: ${loopCheck.reason}. Let's try something different!`,
+      false
+    );
   }
   if (loopCheck.warning) {
-    logger.warn("Loop warning", { chatId: ctx.chatId, warning: loopCheck.warning });
+    logger.warn('Loop warning', { chatId: ctx.chatId, warning: loopCheck.warning });
   }
 
   // Update emotional state based on user message
   emotionalState.detectFromMessage(ctx.userId, ctx.message);
-  
+
   const tools = getTools();
   const sessionContext = sessionManager.getContext(session.id);
-  
+
   // Build dynamic system prompt with full context
   const systemPrompt = await buildSystemPrompt(ctx.userId, ctx.message, ctx.username, ctx.chatId);
 
   const messages: AIMessage[] = [
-    ...sessionContext.filter((msg) => !!msg.content && msg.content.trim().length > 0),
-    { role: "user", content: ctx.message }
+    ...sessionContext.filter(msg => !!msg.content && msg.content.trim().length > 0),
+    { role: 'user', content: ctx.message },
   ];
-  estimatedInputTokens = estimateTokensFromText(systemPrompt) + messages.reduce((total, msg) => total + estimateTokensFromText(msg.content), 0);
+  estimatedInputTokens =
+    estimateTokensFromText(systemPrompt) +
+    messages.reduce((total, msg) => total + estimateTokensFromText(msg.content), 0);
 
   let response;
   const provider = configManager.getAIProvider();
-  
+
   try {
-    logger.info(`Calling ${provider} API`, { userId: ctx.userId, messageLength: ctx.message.length });
+    logger.info(`Calling ${provider} API`, {
+      userId: ctx.userId,
+      messageLength: ctx.message.length,
+    });
     response = await aiClient.createCompletion(messages, tools, systemPrompt);
     observedProvider = response.provider || provider;
-    logger.info("Received response from AI", { userId: ctx.userId, hasContent: !!response.content });
+    logger.info('Received response from AI', {
+      userId: ctx.userId,
+      hasContent: !!response.content,
+    });
   } catch (error) {
-    logger.error("AI API error", { error: String(error), userId: ctx.userId, provider });
+    logger.error('AI API error', { error: String(error), userId: ctx.userId, provider });
     observedProvider = provider;
-    return finishRequest(`❌ API Error (${provider}): ${error instanceof Error ? error.message : "Unknown"}`, false);
+    return finishRequest(
+      `❌ API Error (${provider}): ${error instanceof Error ? error.message : 'Unknown'}`,
+      false
+    );
   }
 
-  let finalText = response.content || "";
+  let finalText = response.content || '';
 
   if (
-    (!response.toolCalls || response.toolCalls.length === 0)
-    && hasWebIntent(ctx.message)
-    && response.content
-    && (modelDeclinedBrowsing(response.content) || modelPretendsToolExecution(response.content))
+    (!response.toolCalls || response.toolCalls.length === 0) &&
+    hasWebIntent(ctx.message) &&
+    response.content &&
+    (modelDeclinedBrowsing(response.content) || modelPretendsToolExecution(response.content))
   ) {
-    logger.warn("Model failed to use available browsing tools; applying recovery tool call", {
+    logger.warn('Model failed to use available browsing tools; applying recovery tool call', {
       userId: ctx.userId,
-      chatId: ctx.chatId
+      chatId: ctx.chatId,
     });
     response.toolCalls = buildRecoveryToolCalls(ctx.message);
-    finalText = "Let me run that directly with real tools.";
+    finalText = 'Let me run that directly with real tools.';
   }
 
   if (
-    (!response.toolCalls || response.toolCalls.length === 0)
-    && !hasGacPropertiesIntent(ctx.message)
-    && hasLocalMachineIntent(ctx.message)
-    && response.content
-    && accessControl.hasAppleScriptAccess(ctx.userId, ctx.chatId)
+    (!response.toolCalls || response.toolCalls.length === 0) &&
+    !hasGacPropertiesIntent(ctx.message) &&
+    hasLocalMachineIntent(ctx.message) &&
+    response.content &&
+    accessControl.hasAppleScriptAccess(ctx.userId, ctx.chatId)
   ) {
     const extractedScript = extractAppleScriptFromContent(response.content);
     if (extractedScript) {
-      logger.warn("Model provided AppleScript without tool call; executing via recovery path", {
+      logger.warn('Model provided AppleScript without tool call; executing via recovery path', {
         userId: ctx.userId,
-        chatId: ctx.chatId
+        chatId: ctx.chatId,
       });
       response.toolCalls = [
         {
-          name: "applescript",
+          name: 'applescript',
           input: { script: extractedScript },
-          id: `recovery-applescript-${Date.now()}`
-        }
+          id: `recovery-applescript-${Date.now()}`,
+        },
       ];
-      finalText = "Let me run that AppleScript directly.";
+      finalText = 'Let me run that AppleScript directly.';
     }
   }
 
   if (
-    (!response.toolCalls || response.toolCalls.length === 0)
-    && hasGacPropertiesIntent(ctx.message)
-    && accessControl.hasAppleScriptAccess(ctx.userId, ctx.chatId)
+    (!response.toolCalls || response.toolCalls.length === 0) &&
+    hasGacPropertiesIntent(ctx.message) &&
+    accessControl.hasAppleScriptAccess(ctx.userId, ctx.chatId)
   ) {
-    logger.warn("Model did not issue gac tool call; applying recovery tool call", {
+    logger.warn('Model did not issue gac tool call; applying recovery tool call', {
       userId: ctx.userId,
-      chatId: ctx.chatId
+      chatId: ctx.chatId,
     });
     response.toolCalls = [
       {
-        name: "gac_list_properties",
+        name: 'gac_list_properties',
         input: {},
-        id: `recovery-gac-properties-${Date.now()}`
-      }
+        id: `recovery-gac-properties-${Date.now()}`,
+      },
     ];
-    finalText = "Let me fetch all your GA properties directly using gac.";
+    finalText = 'Let me fetch all your GA properties directly using gac.';
   }
 
   const toolConversation: AIMessage[] = [...messages];
   if (response.content && response.content.trim().length > 0) {
-    toolConversation.push({ role: "assistant", content: response.content });
+    toolConversation.push({ role: 'assistant', content: response.content });
   }
 
   let pendingToolCalls = response.toolCalls || [];
@@ -458,14 +517,16 @@ export async function runAgent(ctx: MessageContext): Promise<string> {
 
   while (pendingToolCalls.length > 0 && toolRound < maxToolRounds) {
     toolRound += 1;
-    const batchContainsBrowserContent = pendingToolCalls.some((call) => call.name === "browser_content");
+    const batchContainsBrowserContent = pendingToolCalls.some(
+      call => call.name === 'browser_content'
+    );
     let approvalBlockedThisRound = false;
     let executedToolThisRound = false;
-    logger.info("Processing tool round", {
+    logger.info('Processing tool round', {
       userId: ctx.userId,
       chatId: ctx.chatId,
       toolRound,
-      toolCount: pendingToolCalls.length
+      toolCount: pendingToolCalls.length,
     });
 
     for (const toolCall of pendingToolCalls) {
@@ -474,15 +535,23 @@ export async function runAgent(ctx: MessageContext): Promise<string> {
 
       const toolCheck = isToolAllowed(toolName);
       if (!toolCheck.allowed) {
-        logger.warn("Tool not allowed", { tool: toolName, reason: toolCheck.reason });
+        logger.warn('Tool not allowed', { tool: toolName, reason: toolCheck.reason });
         const blockedMessage = `⛔ ${toolCheck.reason}`;
         finalText += `\n\n${blockedMessage}`;
-        toolConversation.push({ role: "user", content: `Tool blocked (${toolName}): ${toolCheck.reason}` });
+        toolConversation.push({
+          role: 'user',
+          content: `Tool blocked (${toolName}): ${toolCheck.reason}`,
+        });
         continue;
       }
 
       if (requiresToolApproval(toolName, toolInput) && ctx.userId && ctx.chatId) {
-        const approved = accessControl.consumeApprovedToolAction(ctx.userId, ctx.chatId, toolName, toolInput);
+        const approved = accessControl.consumeApprovedToolAction(
+          ctx.userId,
+          ctx.chatId,
+          toolName,
+          toolInput
+        );
         if (!approved) {
           const request = accessControl.requestToolApproval(
             ctx.userId,
@@ -493,64 +562,106 @@ export async function runAgent(ctx: MessageContext): Promise<string> {
           );
           approvalBlockedThisRound = true;
           const approvalMessage = `⚠️ Approval required for risky action (${toolName}).\nRequest ID: \`${request.id}\`\nSummary: ${request.summary}\nApprove with \`/approve ${request.id}\` or deny with \`/deny ${request.id}\`.`;
-          finalText += `${finalText ? "\n\n" : ""}${approvalMessage}`;
-          toolConversation.push({ role: "user", content: `Tool approval required (${toolName}): ${request.summary}. Request ID: ${request.id}` });
-          logger.info("Tool execution paused pending approval", {
+          finalText += `${finalText ? '\n\n' : ''}${approvalMessage}`;
+          toolConversation.push({
+            role: 'user',
+            content: `Tool approval required (${toolName}): ${request.summary}. Request ID: ${request.id}`,
+          });
+          logger.info('Tool execution paused pending approval', {
             userId: ctx.userId,
             chatId: ctx.chatId,
             toolName,
-            requestId: request.id
+            requestId: request.id,
           });
           continue;
         }
       }
 
-      logger.info("Executing tool", { tool: toolName, userId: ctx.userId, chatId: ctx.chatId });
+      logger.info('Executing tool', { tool: toolName, userId: ctx.userId, chatId: ctx.chatId });
       const toolStartedAt = Date.now();
       const result = await executeTool(toolName, toolInput, ctx.chatId, ctx.userId);
       executedToolThisRound = true;
       latestToolResult = result;
-      observabilityStore.recordToolCall(toolName, toolCallSucceeded(result), Date.now() - toolStartedAt);
+      observabilityStore.recordToolCall(
+        toolName,
+        toolCallSucceeded(result),
+        Date.now() - toolStartedAt
+      );
 
       loopDetector.recordCall(ctx.chatId, toolName, toolInput, result.length);
       memorySystem.recordToolUsage(toolName, JSON.stringify(toolInput));
-      toolConversation.push({ role: "user", content: `Tool result (${toolName}):\n${result}` });
+      toolConversation.push({ role: 'user', content: `Tool result (${toolName}):\n${result}` });
 
-      if (toolName === "browser_navigate" && !batchContainsBrowserContent) {
-        const contentToolCheck = isToolAllowed("browser_content");
+      if (toolName === 'browser_navigate' && !batchContainsBrowserContent) {
+        const contentToolCheck = isToolAllowed('browser_content');
         if (contentToolCheck.allowed) {
-          logger.info("Auto-running browser_content after browser_navigate", {
+          logger.info('Auto-running browser_content after browser_navigate', {
             userId: ctx.userId,
-            chatId: ctx.chatId
+            chatId: ctx.chatId,
           });
           const autoToolStartedAt = Date.now();
-          const autoContent = await executeTool("browser_content", { maxChars: 6000 }, ctx.chatId, ctx.userId);
+          const autoContent = await executeTool(
+            'browser_content',
+            { maxChars: 6000 },
+            ctx.chatId,
+            ctx.userId
+          );
           latestToolResult = autoContent;
-          observabilityStore.recordToolCall("browser_content", toolCallSucceeded(autoContent), Date.now() - autoToolStartedAt);
+          observabilityStore.recordToolCall(
+            'browser_content',
+            toolCallSucceeded(autoContent),
+            Date.now() - autoToolStartedAt
+          );
 
-          loopDetector.recordCall(ctx.chatId, "browser_content", { maxChars: 6000 }, autoContent.length);
-          memorySystem.recordToolUsage("browser_content", JSON.stringify({ maxChars: 6000 }));
-          toolConversation.push({ role: "user", content: `Tool result (browser_content):\n${autoContent}` });
+          loopDetector.recordCall(
+            ctx.chatId,
+            'browser_content',
+            { maxChars: 6000 },
+            autoContent.length
+          );
+          memorySystem.recordToolUsage('browser_content', JSON.stringify({ maxChars: 6000 }));
+          toolConversation.push({
+            role: 'user',
+            content: `Tool result (browser_content):\n${autoContent}`,
+          });
 
-          const navigatedUrl = result.match(/Navigated to:\s*(\S+)/)?.[1] || "";
+          const navigatedUrl = result.match(/Navigated to:\s*(\S+)/)?.[1] || '';
           const linkedInSlug = navigatedUrl.match(/linkedin\.com\/in\/([^/?#]+)/i)?.[1];
-          const looksBlocked = autoContent.includes("about:blank") || autoContent.includes("(No text content found)");
-          const searchToolCheck = isToolAllowed("search");
+          const looksBlocked =
+            autoContent.includes('about:blank') || autoContent.includes('(No text content found)');
+          const searchToolCheck = isToolAllowed('search');
 
           if (linkedInSlug && looksBlocked && searchToolCheck.allowed) {
-            const fallbackQuery = `${linkedInSlug.replace(/[-_]+/g, " ")} LinkedIn profile`;
-            logger.info("Auto-running search fallback for blocked LinkedIn profile", {
+            const fallbackQuery = `${linkedInSlug.replace(/[-_]+/g, ' ')} LinkedIn profile`;
+            logger.info('Auto-running search fallback for blocked LinkedIn profile', {
               userId: ctx.userId,
               chatId: ctx.chatId,
-              fallbackQuery
+              fallbackQuery,
             });
             const fallbackSearchStartedAt = Date.now();
-            const fallbackSearch = await executeTool("search", { query: fallbackQuery }, ctx.chatId, ctx.userId);
+            const fallbackSearch = await executeTool(
+              'search',
+              { query: fallbackQuery },
+              ctx.chatId,
+              ctx.userId
+            );
             latestToolResult = fallbackSearch;
-            observabilityStore.recordToolCall("search", toolCallSucceeded(fallbackSearch), Date.now() - fallbackSearchStartedAt);
-            loopDetector.recordCall(ctx.chatId, "search", { query: fallbackQuery }, fallbackSearch.length);
-            memorySystem.recordToolUsage("search", JSON.stringify({ query: fallbackQuery }));
-            toolConversation.push({ role: "user", content: `Tool result (search):\n${fallbackSearch}` });
+            observabilityStore.recordToolCall(
+              'search',
+              toolCallSucceeded(fallbackSearch),
+              Date.now() - fallbackSearchStartedAt
+            );
+            loopDetector.recordCall(
+              ctx.chatId,
+              'search',
+              { query: fallbackQuery },
+              fallbackSearch.length
+            );
+            memorySystem.recordToolUsage('search', JSON.stringify({ query: fallbackQuery }));
+            toolConversation.push({
+              role: 'user',
+              content: `Tool result (search):\n${fallbackSearch}`,
+            });
           }
         }
       }
@@ -564,78 +675,102 @@ export async function runAgent(ctx: MessageContext): Promise<string> {
     try {
       const followUp = await aiClient.createCompletion(toolConversation, tools, systemPrompt);
       observedProvider = followUp.provider || observedProvider;
-      const followUpContent = followUp.content && followUp.content.trim().length > 0
-        ? followUp.content
-        : "";
+      const followUpContent =
+        followUp.content && followUp.content.trim().length > 0 ? followUp.content : '';
 
-      let recoveredToolCalls: Array<{ name: string; input: Record<string, unknown>; id: string }> | null = null;
+      let recoveredToolCalls: Array<{
+        name: string;
+        input: Record<string, unknown>;
+        id: string;
+      }> | null = null;
       if (
-        (!followUp.toolCalls || followUp.toolCalls.length === 0)
-        && followUpContent
-        && modelPretendsToolExecution(followUpContent)
+        (!followUp.toolCalls || followUp.toolCalls.length === 0) &&
+        followUpContent &&
+        modelPretendsToolExecution(followUpContent)
       ) {
-        if (hasGacPropertiesIntent(ctx.message) && accessControl.hasAppleScriptAccess(ctx.userId, ctx.chatId)) {
-          logger.warn("Follow-up response missed gac tool execution; forcing gac recovery call", {
+        if (
+          hasGacPropertiesIntent(ctx.message) &&
+          accessControl.hasAppleScriptAccess(ctx.userId, ctx.chatId)
+        ) {
+          logger.warn('Follow-up response missed gac tool execution; forcing gac recovery call', {
             userId: ctx.userId,
             chatId: ctx.chatId,
-            toolRound
+            toolRound,
           });
           recoveredToolCalls = [
             {
-              name: "gac_list_properties",
+              name: 'gac_list_properties',
               input: {},
-              id: `recovery-followup-gac-properties-${Date.now()}`
-            }
+              id: `recovery-followup-gac-properties-${Date.now()}`,
+            },
           ];
-        } else if (hasLocalMachineIntent(ctx.message) && accessControl.hasAppleScriptAccess(ctx.userId, ctx.chatId)) {
+        } else if (
+          hasLocalMachineIntent(ctx.message) &&
+          accessControl.hasAppleScriptAccess(ctx.userId, ctx.chatId)
+        ) {
           const extractedScript = extractAppleScriptFromContent(followUpContent);
           if (extractedScript) {
-            logger.warn("Follow-up response pretended AppleScript execution; forcing real tool call", {
-              userId: ctx.userId,
-              chatId: ctx.chatId,
-              toolRound
-            });
+            logger.warn(
+              'Follow-up response pretended AppleScript execution; forcing real tool call',
+              {
+                userId: ctx.userId,
+                chatId: ctx.chatId,
+                toolRound,
+              }
+            );
             recoveredToolCalls = [
               {
-                name: "applescript",
+                name: 'applescript',
                 input: { script: extractedScript },
-                id: `recovery-followup-applescript-${Date.now()}`
-              }
+                id: `recovery-followup-applescript-${Date.now()}`,
+              },
             ];
           }
         } else if (hasWebIntent(ctx.message)) {
-          logger.warn("Follow-up response pretended web tool execution; forcing recovery tool calls", {
-            userId: ctx.userId,
-            chatId: ctx.chatId,
-            toolRound
-          });
+          logger.warn(
+            'Follow-up response pretended web tool execution; forcing recovery tool calls',
+            {
+              userId: ctx.userId,
+              chatId: ctx.chatId,
+              toolRound,
+            }
+          );
           recoveredToolCalls = buildRecoveryToolCalls(ctx.message);
         }
       }
 
       if (followUpContent && !recoveredToolCalls) {
-        finalText += (finalText ? "\n\n" : "") + followUpContent;
-        toolConversation.push({ role: "assistant", content: followUpContent });
+        finalText += (finalText ? '\n\n' : '') + followUpContent;
+        toolConversation.push({ role: 'assistant', content: followUpContent });
       }
       pendingToolCalls = recoveredToolCalls || followUp.toolCalls || [];
     } catch (e) {
-      logger.error("Follow-up API call failed", { error: String(e), chatId: ctx.chatId, toolRound });
+      logger.error('Follow-up API call failed', {
+        error: String(e),
+        chatId: ctx.chatId,
+        toolRound,
+      });
       break;
     }
   }
 
   if (pendingToolCalls.length > 0) {
-    logger.warn("Stopping tool execution after max rounds", {
+    logger.warn('Stopping tool execution after max rounds', {
       userId: ctx.userId,
       chatId: ctx.chatId,
-      remainingCalls: pendingToolCalls.length
+      remainingCalls: pendingToolCalls.length,
     });
-    finalText += "\n\n⚠️ I stopped tool execution after several steps to avoid a loop. Please ask me to continue if needed.";
+    finalText +=
+      '\n\n⚠️ I stopped tool execution after several steps to avoid a loop. Please ask me to continue if needed.';
   }
 
   if (hasGacPropertiesIntent(ctx.message) && latestToolResult) {
     finalText = latestToolResult;
-  } else if (latestToolResult && finalText.length > 2500 && /^📈|^📊/.test(latestToolResult.trim())) {
+  } else if (
+    latestToolResult &&
+    finalText.length > 2500 &&
+    /^📈|^📊/.test(latestToolResult.trim())
+  ) {
     finalText = latestToolResult;
   }
 
@@ -646,55 +781,60 @@ export async function runAgent(ctx: MessageContext): Promise<string> {
   finalText = cleanUserFacingResponse(finalText);
 
   if (!finalText || finalText.trim().length === 0) {
-    if (hasLocalMachineIntent(ctx.message) && !accessControl.hasAppleScriptAccess(ctx.userId, ctx.chatId)) {
-      finalText = "🔒 I need local machine permission first. Send /grant_access, then ask again.";
+    if (
+      hasLocalMachineIntent(ctx.message) &&
+      !accessControl.hasAppleScriptAccess(ctx.userId, ctx.chatId)
+    ) {
+      finalText = '🔒 I need local machine permission first. Send /grant_access, then ask again.';
     } else {
-      finalText = "❌ I hit an internal response issue. Please try again.";
+      finalText = '❌ I hit an internal response issue. Please try again.';
     }
   }
 
   // Store interaction
-  sessionManager.addMessage(session.id, "user", ctx.message);
-  sessionManager.addMessage(session.id, "assistant", finalText);
+  sessionManager.addMessage(session.id, 'user', ctx.message);
+  sessionManager.addMessage(session.id, 'assistant', finalText);
   memorySystem.trackInteraction(ctx.chatId);
-  
+
   // Extract and store user facts from this interaction
   memorySystem.extractUserFacts(ctx.userId, ctx.message, finalText);
-  
+
   // Learn from this interaction for style adaptation
   memorySystem.learnFromInteraction(ctx.userId, ctx.message, finalText);
-  
+
   // Update emotional state based on AI response
   emotionalState.updateFromResponse(ctx.userId, finalText);
-  
+
   // Track AI voice consistency
   aiVoice.analyzeResponse(ctx.userId, finalText);
-  
+
   // Record activity for pattern detection
-  patternDetector.recordActivity(ctx.userId, "message", {
-    sentiment: emotionalState.getCurrent(ctx.userId).valence
+  patternDetector.recordActivity(ctx.userId, 'message', {
+    sentiment: emotionalState.getCurrent(ctx.userId).valence,
   });
-  
+
   // Track in social graph (for group contexts)
   socialGraph.trackInteraction(ctx.userId, ctx.chatId, {
     username: ctx.username,
-    sentiment: emotionalState.getCurrent(ctx.userId).valence
+    sentiment: emotionalState.getCurrent(ctx.userId).valence,
   });
 
   return finishRequest(finalText, true);
 }
 
-function resolveWorkspacePath(pathInput: string): { ok: true; absolutePath: string; relativePath: string } | { ok: false; error: string } {
+function resolveWorkspacePath(
+  pathInput: string
+): { ok: true; absolutePath: string; relativePath: string } | { ok: false; error: string } {
   const sanitized = sanitizePath(pathInput, { allowAbsolute: false });
   if (!sanitized.valid) {
-    return { ok: false, error: sanitized.error || "Invalid path" };
+    return { ok: false, error: sanitized.error || 'Invalid path' };
   }
 
   const workspaceRoot = configManager.getWorkspacePath();
   return {
     ok: true,
-    absolutePath: join(workspaceRoot, sanitized.path),
-    relativePath: sanitized.path
+    absolutePath: join(workspaceRoot, sanitized.path!),
+    relativePath: sanitized.path!,
   };
 }
 
@@ -705,87 +845,89 @@ async function executeTool(
   userId?: string
 ): Promise<string> {
   switch (toolName) {
-    case "bash": {
+    case 'bash': {
       const command = input.command as string;
-      if (!command) return "Error: No command provided";
+      if (!command) return 'Error: No command provided';
 
       const commandValidation = validateCommand(command);
       if (!commandValidation.valid) {
-        logger.warn("Rejected unsafe command", { command, reason: commandValidation.error });
+        logger.warn('Rejected unsafe command', { command, reason: commandValidation.error });
         return `⛔ ${commandValidation.error}`;
       }
 
       if (!configManager.isCommandAllowed(command)) {
-        logger.warn("Blocked command", { command });
-        return "⛔ This command has been blocked for safety.";
+        logger.warn('Blocked command', { command });
+        return '⛔ This command has been blocked for safety.';
       }
 
       const timeout = (input.timeout as number) || 30;
       const workspacePath = configManager.getWorkspacePath();
 
       try {
-        const { stdout, stderr } = await execa("bash", ["-c", command], {
+        const { stdout, stderr } = await execa('bash', ['-c', command], {
           timeout: timeout * 1000,
           cwd: workspacePath,
-          stdio: "pipe"
+          stdio: 'pipe',
         });
-        return stdout || stderr || "(no output)";
+        return stdout || stderr || '(no output)';
       } catch (error) {
-        return `Error: ${error instanceof Error ? error.message : "Unknown error"}`;
+        return `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
       }
     }
 
-    case "applescript": {
+    case 'applescript': {
       const scriptInput = input.script as string;
-      if (!scriptInput) return "Error: No script provided";
-      if (scriptInput.length > 8000) return "⛔ AppleScript is too long (max 8000 chars)";
+      if (!scriptInput) return 'Error: No script provided';
+      if (scriptInput.length > 8000) return '⛔ AppleScript is too long (max 8000 chars)';
 
-      if (process.platform !== "darwin") {
-        return "⛔ AppleScript tool is only available on macOS.";
+      if (process.platform !== 'darwin') {
+        return '⛔ AppleScript tool is only available on macOS.';
       }
 
       if (!chatId || !userId) {
-        return "⛔ Missing chat/user context for AppleScript permission checks.";
+        return '⛔ Missing chat/user context for AppleScript permission checks.';
       }
 
       if (!accessControl.hasAppleScriptAccess(userId, chatId)) {
-        return "⛔ AppleScript access is not granted for this chat. Ask the user to send /grant_access first.";
+        return '⛔ AppleScript access is not granted for this chat. Ask the user to send /grant_access first.';
       }
 
       const timeout = (input.timeout as number) || 20;
       const script = injectPathForDoShellScript(scriptInput);
-      const home = process.env.HOME || "";
+      const home = process.env.HOME || '';
       const extendedPath = [
-        process.env.PATH || "",
-        "/opt/homebrew/bin",
-        "/usr/local/bin",
-        "/usr/bin",
-        "/bin",
-        "/usr/sbin",
-        "/sbin",
-        home ? `${home}/go/bin` : "",
-        home ? `${home}/.local/bin` : "",
-        home ? `${home}/.npm-global/bin` : ""
-      ].filter(Boolean).join(":");
+        process.env.PATH || '',
+        '/opt/homebrew/bin',
+        '/usr/local/bin',
+        '/usr/bin',
+        '/bin',
+        '/usr/sbin',
+        '/sbin',
+        home ? `${home}/go/bin` : '',
+        home ? `${home}/.local/bin` : '',
+        home ? `${home}/.npm-global/bin` : '',
+      ]
+        .filter(Boolean)
+        .join(':');
 
       try {
-        const { stdout, stderr } = await execa("osascript", ["-e", script], {
+        const { stdout, stderr } = await execa('osascript', ['-e', script], {
           timeout: Math.max(5, Math.min(timeout, 120)) * 1000,
-          stdio: "pipe",
+          stdio: 'pipe',
           env: {
             ...process.env,
-            PATH: extendedPath
-          }
+            PATH: extendedPath,
+          },
         });
-        return stdout || stderr || "(no output)";
+        return stdout || stderr || '(no output)';
       } catch (error) {
-        return `AppleScript error: ${error instanceof Error ? error.message : "Unknown error"}`;
+        return `AppleScript error: ${error instanceof Error ? error.message : 'Unknown error'}`;
       }
     }
 
-    case "git": {
-      const command = "git " + (input.command as string);
-      const repoPathInput = (input.repoPath as string) || ".";
+    case 'git': {
+      const command = 'git ' + (input.command as string);
+      const repoPathInput = (input.repoPath as string) || '.';
       const resolvedRepoPath = resolveWorkspacePath(repoPathInput);
 
       if (!resolvedRepoPath.ok) {
@@ -793,65 +935,65 @@ async function executeTool(
       }
 
       if (!configManager.isCommandAllowed(command)) {
-        return "⛔ This command has been blocked for safety.";
+        return '⛔ This command has been blocked for safety.';
       }
 
       try {
-        const { stdout, stderr } = await execa("git", (input.command as string).split(" "), {
+        const { stdout, stderr } = await execa('git', (input.command as string).split(' '), {
           cwd: resolvedRepoPath.absolutePath,
           timeout: 30000,
-          stdio: "pipe"
+          stdio: 'pipe',
         });
-        return stdout || stderr || "(no output)";
+        return stdout || stderr || '(no output)';
       } catch (error) {
-        return `Error: ${error instanceof Error ? error.message : "Unknown error"}`;
+        return `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
       }
     }
 
-    case "read_file": {
+    case 'read_file': {
       const pathInput = input.path as string;
-      if (!pathInput) return "Error: No path provided";
+      if (!pathInput) return 'Error: No path provided';
 
       const resolvedPath = resolveWorkspacePath(pathInput);
       if (!resolvedPath.ok) {
         return `⛔ ${resolvedPath.error}`;
       }
-      
+
       try {
         const stats = statSync(resolvedPath.absolutePath);
         if (!stats.isFile()) {
-          return "Error reading file: path is not a file";
+          return 'Error reading file: path is not a file';
         }
 
         const limit = Math.max(1, Math.min((input.limit as number) || 100, 1000));
         const offset = Math.max(1, (input.offset as number) || 1);
-        
-        let content = readFileSync(resolvedPath.absolutePath, "utf-8");
-        const lines = content.split("\n");
-        
+
+        let content = readFileSync(resolvedPath.absolutePath, 'utf-8');
+        const lines = content.split('\n');
+
         if (offset > 1) {
-          content = lines.slice(offset - 1, offset - 1 + limit).join("\n");
+          content = lines.slice(offset - 1, offset - 1 + limit).join('\n');
         } else {
-          content = lines.slice(0, limit).join("\n");
+          content = lines.slice(0, limit).join('\n');
         }
-        
+
         return content + `\n\n--- (showing ${Math.min(limit, lines.length)} lines) ---`;
       } catch (error) {
-        return `Error reading file: ${error instanceof Error ? error.message : "Unknown"}`;
+        return `Error reading file: ${error instanceof Error ? error.message : 'Unknown'}`;
       }
     }
 
-    case "write_file": {
+    case 'write_file': {
       const pathInput = input.path as string;
       const content = input.content as string;
-      
-      if (!pathInput || content === undefined) return "Error: Missing path or content";
+
+      if (!pathInput || content === undefined) return 'Error: Missing path or content';
 
       const resolvedPath = resolveWorkspacePath(pathInput);
       if (!resolvedPath.ok) {
         return `⛔ ${resolvedPath.error}`;
       }
-      
+
       try {
         const dir = dirname(resolvedPath.absolutePath);
         if (!existsSync(dir)) {
@@ -860,31 +1002,31 @@ async function executeTool(
         writeFileSync(resolvedPath.absolutePath, content);
         return `✅ File written: ${resolvedPath.relativePath}`;
       } catch (error) {
-        return `Error writing file: ${error instanceof Error ? error.message : "Unknown"}`;
+        return `Error writing file: ${error instanceof Error ? error.message : 'Unknown'}`;
       }
     }
 
-    case "list_directory": {
-      const pathInput = (input.path as string) || ".";
+    case 'list_directory': {
+      const pathInput = (input.path as string) || '.';
       const resolvedPath = resolveWorkspacePath(pathInput);
       if (!resolvedPath.ok) {
         return `⛔ ${resolvedPath.error}`;
       }
-      
+
       try {
-        const { execa } = await import("execa");
-        const { stdout } = await execa("ls", ["-la", resolvedPath.absolutePath]);
-        return stdout || "(empty directory)";
+        const { execa } = await import('execa');
+        const { stdout } = await execa('ls', ['-la', resolvedPath.absolutePath]);
+        return stdout || '(empty directory)';
       } catch (error) {
-        return `Error listing directory: ${error instanceof Error ? error.message : "Unknown"}`;
+        return `Error listing directory: ${error instanceof Error ? error.message : 'Unknown'}`;
       }
     }
 
-    case "glob": {
+    case 'glob': {
       const pattern = input.pattern as string;
-      const basePathInput = (input.path as string) || ".";
-      
-      if (!pattern) return "Error: No pattern provided";
+      const basePathInput = (input.path as string) || '.';
+
+      if (!pattern) return 'Error: No pattern provided';
       const patternValidation = validatePattern(pattern, 200);
       if (!patternValidation.valid) {
         return `⛔ ${patternValidation.error}`;
@@ -894,23 +1036,29 @@ async function executeTool(
       if (!resolvedBasePath.ok) {
         return `⛔ ${resolvedBasePath.error}`;
       }
-      
+
       try {
-        const { execa } = await import("execa");
-        const { stdout } = await execa("find", [resolvedBasePath.absolutePath, "-type", "f", "-name", pattern]);
-        const files = stdout.split("\n").filter(Boolean).slice(0, 50);
-        return files.length > 0 ? files.join("\n") : "No files found";
+        const { execa } = await import('execa');
+        const { stdout } = await execa('find', [
+          resolvedBasePath.absolutePath,
+          '-type',
+          'f',
+          '-name',
+          pattern,
+        ]);
+        const files = stdout.split('\n').filter(Boolean).slice(0, 50);
+        return files.length > 0 ? files.join('\n') : 'No files found';
       } catch {
-        return "Error running glob";
+        return 'Error running glob';
       }
     }
 
-    case "grep": {
+    case 'grep': {
       const pattern = input.pattern as string;
-      const pathInput = (input.path as string) || ".";
+      const pathInput = (input.path as string) || '.';
       const caseSensitive = input.caseSensitive !== false;
-      
-      if (!pattern) return "Error: No pattern provided";
+
+      if (!pattern) return 'Error: No pattern provided';
 
       const patternValidation = validatePattern(pattern, 200);
       if (!patternValidation.valid) {
@@ -921,153 +1069,155 @@ async function executeTool(
       if (!resolvedPath.ok) {
         return `⛔ ${resolvedPath.error}`;
       }
-      
+
       try {
-        const { execa } = await import("execa");
-        const args = caseSensitive ? ["-r", pattern, resolvedPath.absolutePath] : ["-ri", pattern, resolvedPath.absolutePath];
-        const { stdout, stderr } = await execa("grep", args);
-        const lines = (stdout || stderr).split("\n").slice(0, 50);
-        return lines.length > 0 ? lines.join("\n") : "No matches found";
+        const { execa } = await import('execa');
+        const args = caseSensitive
+          ? ['-r', pattern, resolvedPath.absolutePath]
+          : ['-ri', pattern, resolvedPath.absolutePath];
+        const { stdout, stderr } = await execa('grep', args);
+        const lines = (stdout || stderr).split('\n').slice(0, 50);
+        return lines.length > 0 ? lines.join('\n') : 'No matches found';
       } catch {
-        return "No matches found or error running grep";
+        return 'No matches found or error running grep';
       }
     }
 
-    case "search": {
+    case 'search': {
       const query = input.query as string;
-      if (!query) return "Error: No query provided";
-      
-      const { webSearch } = await import("./web_search.js");
+      if (!query) return 'Error: No query provided';
+
+      const { webSearch } = await import('./web_search.js');
       return await webSearch(query);
     }
 
-    case "browser_navigate": {
+    case 'browser_navigate': {
       const url = input.url as string;
-      if (!url) return "Error: No URL provided";
+      if (!url) return 'Error: No URL provided';
 
-      const { browserNavigate } = await import("../tools/browser_session.js");
+      const { browserNavigate } = await import('../tools/browser_session.js');
       return await browserNavigate(url, chatId ? String(chatId) : undefined);
     }
 
-    case "browser_click": {
+    case 'browser_click': {
       const selector = input.selector as string;
-      if (!selector) return "Error: No selector provided";
+      if (!selector) return 'Error: No selector provided';
 
-      const { browserClick } = await import("../tools/browser_session.js");
+      const { browserClick } = await import('../tools/browser_session.js');
       return await browserClick(selector, chatId ? String(chatId) : undefined);
     }
 
-    case "browser_type": {
+    case 'browser_type': {
       const selector = input.selector as string;
       const text = input.text as string;
-      if (!selector || text === undefined) return "Error: Missing selector or text";
+      if (!selector || text === undefined) return 'Error: Missing selector or text';
 
-      const { browserType } = await import("../tools/browser_session.js");
+      const { browserType } = await import('../tools/browser_session.js');
       return await browserType(selector, text, chatId ? String(chatId) : undefined);
     }
 
-    case "browser_content": {
+    case 'browser_content': {
       const maxCharsRaw = input.maxChars as number | undefined;
-      const maxChars = typeof maxCharsRaw === "number" ? maxCharsRaw : 6000;
+      const maxChars = typeof maxCharsRaw === 'number' ? maxCharsRaw : 6000;
 
-      const { browserContent } = await import("../tools/browser_session.js");
+      const { browserContent } = await import('../tools/browser_session.js');
       return await browserContent(maxChars, chatId ? String(chatId) : undefined);
     }
 
-    case "browser_screenshot": {
+    case 'browser_screenshot': {
       const fullPage = input.fullPage === true;
 
-      const { browserScreenshot } = await import("../tools/browser_session.js");
+      const { browserScreenshot } = await import('../tools/browser_session.js');
       return await browserScreenshot(fullPage, chatId ? String(chatId) : undefined);
     }
 
-    case "browser_evaluate": {
+    case 'browser_evaluate': {
       const script = input.script as string;
-      if (!script) return "Error: No script provided";
+      if (!script) return 'Error: No script provided';
 
-      const { browserEvaluate } = await import("../tools/browser_session.js");
+      const { browserEvaluate } = await import('../tools/browser_session.js');
       return await browserEvaluate(script, chatId ? String(chatId) : undefined);
     }
 
-    case "browser_fill": {
+    case 'browser_fill': {
       const fields = input.fields;
-      if (fields === undefined) return "Error: No fields provided";
+      if (fields === undefined) return 'Error: No fields provided';
 
-      const { browserFill } = await import("../tools/browser_session.js");
+      const { browserFill } = await import('../tools/browser_session.js');
       return await browserFill(fields, chatId ? String(chatId) : undefined);
     }
 
-    case "browser_select": {
+    case 'browser_select': {
       const selector = input.selector as string;
       const value = input.value as string;
-      if (!selector || !value) return "Error: Missing selector or value";
+      if (!selector || !value) return 'Error: Missing selector or value';
 
-      const { browserSelect } = await import("../tools/browser_session.js");
+      const { browserSelect } = await import('../tools/browser_session.js');
       return await browserSelect(selector, value, chatId ? String(chatId) : undefined);
     }
 
-    case "browser_scroll": {
-      const direction = (input.direction as string) || "down";
+    case 'browser_scroll': {
+      const direction = (input.direction as string) || 'down';
       const amountRaw = input.amount;
-      const amount = typeof amountRaw === "number" ? amountRaw : 800;
+      const amount = typeof amountRaw === 'number' ? amountRaw : 800;
 
-      const { browserScroll } = await import("../tools/browser_session.js");
+      const { browserScroll } = await import('../tools/browser_session.js');
       return await browserScroll(direction, amount, chatId ? String(chatId) : undefined);
     }
 
-    case "browser_back": {
-      const { browserBack } = await import("../tools/browser_session.js");
+    case 'browser_back': {
+      const { browserBack } = await import('../tools/browser_session.js');
       return await browserBack(chatId ? String(chatId) : undefined);
     }
 
-    case "browser_forward": {
-      const { browserForward } = await import("../tools/browser_session.js");
+    case 'browser_forward': {
+      const { browserForward } = await import('../tools/browser_session.js');
       return await browserForward(chatId ? String(chatId) : undefined);
     }
 
-    case "browser_snapshot": {
+    case 'browser_snapshot': {
       const maxCharsRaw = input.maxChars as number | undefined;
-      const maxChars = typeof maxCharsRaw === "number" ? maxCharsRaw : 5000;
+      const maxChars = typeof maxCharsRaw === 'number' ? maxCharsRaw : 5000;
 
-      const { browserSnapshot } = await import("../tools/browser_session.js");
+      const { browserSnapshot } = await import('../tools/browser_session.js');
       return await browserSnapshot(maxChars, chatId ? String(chatId) : undefined);
     }
 
-    case "gac_list_accounts": {
+    case 'gac_list_accounts': {
       if (!chatId || !userId) {
-        return "⛔ Missing chat/user context for local access checks.";
+        return '⛔ Missing chat/user context for local access checks.';
       }
       if (!accessControl.hasAppleScriptAccess(userId, chatId)) {
-        return "⛔ Local machine access is not granted. Ask the user to send /grant_access first.";
+        return '⛔ Local machine access is not granted. Ask the user to send /grant_access first.';
       }
 
-      const { gacListAccounts } = await import("../tools/gac.js");
+      const { gacListAccounts } = await import('../tools/gac.js');
       return await gacListAccounts();
     }
 
-    case "gac_list_properties": {
+    case 'gac_list_properties': {
       if (!chatId || !userId) {
-        return "⛔ Missing chat/user context for local access checks.";
+        return '⛔ Missing chat/user context for local access checks.';
       }
       if (!accessControl.hasAppleScriptAccess(userId, chatId)) {
-        return "⛔ Local machine access is not granted. Ask the user to send /grant_access first.";
+        return '⛔ Local machine access is not granted. Ask the user to send /grant_access first.';
       }
 
       const accountId = input.accountId as string | undefined;
-      const { gacListProperties } = await import("../tools/gac.js");
+      const { gacListProperties } = await import('../tools/gac.js');
       return await gacListProperties(accountId);
     }
 
-    case "get_system_info": {
-      const os = await import("os");
+    case 'get_system_info': {
+      const os = await import('os');
       const cpus = os.cpus();
       const totalMem = os.totalmem();
       const freeMem = os.freemem();
-      
+
       return `
 *System Information*
 - OS: ${os.platform()} ${os.release()}
-- CPU: ${cpus[0]?.model || "Unknown"} (${cpus.length} cores)
+- CPU: ${cpus[0]?.model || 'Unknown'} (${cpus.length} cores)
 - Memory: ${Math.round((totalMem - freeMem) / 1024 / 1024)}MB / ${Math.round(totalMem / 1024 / 1024)}MB
 - Home: ${os.homedir()}
 - Hostname: ${os.hostname()}
@@ -1075,8 +1225,8 @@ async function executeTool(
 `.trim();
     }
 
-    case "nodejs": {
-      return "⛔ The nodejs tool is disabled for security. Use vetted tools like read_file, write_file, grep, glob, or bash with the command policy.";
+    case 'nodejs': {
+      return '⛔ The nodejs tool is disabled for security. Use vetted tools like read_file, write_file, grep, glob, or bash with the command policy.';
     }
 
     default:

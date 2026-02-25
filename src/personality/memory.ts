@@ -1,23 +1,23 @@
-import { configManager } from "../config/manager.js";
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
-import { UserProfiler } from "./user_profiler.js";
-import { embeddingService } from "./embeddings.js";
+import { configManager } from '../config/manager.js';
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { UserProfiler } from './user_profiler.js';
+import { embeddingService } from './embeddings.js';
 
 // Enhanced memory types for better organization
-type MemoryType = 
-  | "fact"           // Basic facts (name, location, work)
-  | "preference"     // Likes/dislikes
-  | "goal"           // Short/long term goals
-  | "relationship"   // Connections to people/orgs
-  | "event"          // Specific occurrences
-  | "pattern"        // Behavioral patterns
-  | "emotion"        // Emotional states during conversations
-  | "knowledge_gap"  // Things user is learning
-  | "conversation"   // Conversation summaries
-  | "tool_usage"     // Tool usage patterns
-  | "user_style"     // Communication style
-  | "learning";      // Learned insights
+type MemoryType =
+  | 'fact' // Basic facts (name, location, work)
+  | 'preference' // Likes/dislikes
+  | 'goal' // Short/long term goals
+  | 'relationship' // Connections to people/orgs
+  | 'event' // Specific occurrences
+  | 'pattern' // Behavioral patterns
+  | 'emotion' // Emotional states during conversations
+  | 'knowledge_gap' // Things user is learning
+  | 'conversation' // Conversation summaries
+  | 'tool_usage' // Tool usage patterns
+  | 'user_style' // Communication style
+  | 'learning'; // Learned insights
 
 interface MemoryEntry {
   id: string;
@@ -27,46 +27,56 @@ interface MemoryEntry {
   importance: number;
   tags: string[];
   userId?: string;
-  
+
   // Enhanced fields for better connections
-  entities?: string[];           // Extracted entities (people, places, topics)
-  relatedEntryIds?: string[];    // Links to related memories
-  sentiment?: number;            // -1 to 1 emotional valence
-  source?: string;               // Where this memory came from
-  confidence?: number;           // How sure we are about this memory (0-1)
+  entities?: string[]; // Extracted entities (people, places, topics)
+  relatedEntryIds?: string[]; // Links to related memories
+  sentiment?: number; // -1 to 1 emotional valence
+  source?: string; // Where this memory came from
+  confidence?: number; // How sure we are about this memory (0-1)
 }
 
 const MAX_CONTENT_LENGTH = 10000;
 const MAX_TAGS = 10;
 const MAX_TAG_LENGTH = 50;
 const VALID_TYPES: Set<MemoryType> = new Set([
-  "fact", "preference", "goal", "relationship", "event", "pattern", 
-  "emotion", "knowledge_gap", "conversation", "tool_usage", "user_style", "learning"
+  'fact',
+  'preference',
+  'goal',
+  'relationship',
+  'event',
+  'pattern',
+  'emotion',
+  'knowledge_gap',
+  'conversation',
+  'tool_usage',
+  'user_style',
+  'learning',
 ]);
 
 // Common entity patterns for extraction
 const ENTITY_PATTERNS = {
   person: [
     /(?:my|his|her|their)\s+(?:friend|brother|sister|mom|dad|mother|father|wife|husband|partner|colleague|boss)\s+(?:is\s+)?([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/gi,
-    /([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\s+(?:is|was)\s+(?:my|his|her|their)/gi
+    /([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\s+(?:is|was)\s+(?:my|his|her|their)/gi,
   ],
   organization: [
     /\b(Google|Microsoft|Apple|Amazon|Meta|Netflix|Spotify|Uber|Airbnb|Twitter|LinkedIn)\b/gi,
     /\b\w+\s+(?:Inc|Corp|Ltd|LLC|Company|Startup|Agency)\b/gi,
-    /(?:work\s+(?:at|for)|employed\s+by)\s+([A-Z]\w+(?:\s+[A-Z]\w+)?)/gi
+    /(?:work\s+(?:at|for)|employed\s+by)\s+([A-Z]\w+(?:\s+[A-Z]\w+)?)/gi,
   ],
   location: [
     /\b(New York|San Francisco|Los Angeles|London|Paris|Tokyo|Berlin|Sydney|Toronto|Singapore)\b/gi,
-    /(?:live\s+in|from|located\s+in|moving\s+to)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/gi
+    /(?:live\s+in|from|located\s+in|moving\s+to)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/gi,
   ],
   technology: [
     /\b(JavaScript|TypeScript|Python|Rust|Go|Java|C\+\+|React|Vue|Angular|Node\.js|Docker|Kubernetes)\b/gi,
-    /\b(AI|ML|blockchain|web3|cloud|serverless)\b/gi
+    /\b(AI|ML|blockchain|web3|cloud|serverless)\b/gi,
   ],
   topic: [
     /(?:interested\s+in|learning|studying|passionate\s+about)\s+(\w+(?:\s+\w+){0,3})/gi,
-    /(?:working\s+on|building|creating)\s+(?:a\s+)?(\w+(?:\s+\w+){0,3})/gi
-  ]
+    /(?:working\s+on|building|creating)\s+(?:a\s+)?(\w+(?:\s+\w+){0,3})/gi,
+  ],
 };
 
 class MemorySystem {
@@ -77,7 +87,7 @@ class MemorySystem {
   private entityIndex: Map<string, Set<string>> = new Map(); // entity -> memory IDs
 
   constructor() {
-    this.memoryPath = join(configManager.getWorkspacePath(), "MEMORY.md");
+    this.memoryPath = join(configManager.getWorkspacePath(), 'MEMORY.md');
     this.load(); // Build entity index on startup
   }
 
@@ -103,12 +113,12 @@ class MemorySystem {
     }
 
     try {
-      const content = readFileSync(this.memoryPath, "utf-8");
+      const content = readFileSync(this.memoryPath, 'utf-8');
       this.memoryCache = this.parseMemoryFile(content);
       this.buildEntityIndex(this.memoryCache);
       return this.memoryCache;
     } catch (e) {
-      console.warn("Failed to load memory:", e);
+      console.warn('Failed to load memory:', e);
       this.memoryCache = [];
       this.buildEntityIndex([]);
       return [];
@@ -145,16 +155,16 @@ class MemorySystem {
     }
   }
 
-  addEntry(entry: Omit<MemoryEntry, "timestamp" | "id">): void {
+  addEntry(entry: Omit<MemoryEntry, 'timestamp' | 'id'>): void {
     const entries = this.load();
-    
+
     // Generate unique ID
     const id = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
+
     // Validate entry
     const validatedEntry = this.validateEntry({ ...entry, id });
     if (!validatedEntry) {
-      console.warn("Invalid memory entry rejected");
+      console.warn('Invalid memory entry rejected');
       return;
     }
 
@@ -168,7 +178,7 @@ class MemorySystem {
 
     const fullEntry: MemoryEntry = {
       ...validatedEntry,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
 
     entries.push(fullEntry);
@@ -181,7 +191,7 @@ class MemorySystem {
     this.enforcePerUserCap(entries, fullEntry.userId);
 
     this.save(entries);
-    
+
     // Update entity index
     if (fullEntry.entities) {
       for (const entity of fullEntry.entities) {
@@ -192,10 +202,10 @@ class MemorySystem {
         this.entityIndex.get(normalized)!.add(fullEntry.id);
       }
     }
-    
+
     // Generate embedding asynchronously (don't block)
     this.generateEmbeddingForEntry(fullEntry).catch(e => {
-      console.warn("Failed to generate embedding:", e);
+      console.warn('Failed to generate embedding:', e);
     });
   }
 
@@ -208,7 +218,7 @@ class MemorySystem {
         type: entry.type,
         userId: entry.userId,
         timestamp: entry.timestamp,
-        importance: entry.importance
+        importance: entry.importance,
       });
     } catch (e) {
       console.warn(`Failed to generate embedding for ${entry.id}:`, e);
@@ -220,7 +230,7 @@ class MemorySystem {
    */
   extractEntities(text: string): string[] {
     const entities: string[] = [];
-    
+
     for (const [type, patterns] of Object.entries(ENTITY_PATTERNS)) {
       for (const pattern of patterns) {
         const matches = text.matchAll(pattern);
@@ -232,18 +242,18 @@ class MemorySystem {
         }
       }
     }
-    
+
     // Additional simple NER
     // Capitalized phrases (potential proper nouns)
     const properNouns = text.match(/\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b/g) || [];
     for (const noun of properNouns) {
       // Filter out common words
-      const commonWords = ["The", "A", "An", "I", "You", "He", "She", "It", "We", "They"];
+      const commonWords = ['The', 'A', 'An', 'I', 'You', 'He', 'She', 'It', 'We', 'They'];
       if (!commonWords.includes(noun) && !entities.includes(noun)) {
         entities.push(noun);
       }
     }
-    
+
     return entities.slice(0, 20); // Limit entities
   }
 
@@ -253,29 +263,29 @@ class MemorySystem {
   private findRelatedMemories(newEntry: MemoryEntry, allEntries: MemoryEntry[]): string[] {
     const related: string[] = [];
     const newEntities = new Set((newEntry.entities || []).map(e => e.toLowerCase()));
-    
+
     for (const entry of allEntries) {
       if (entry.id === newEntry.id) continue;
-      
+
       // Check entity overlap
       const entryEntities = new Set((entry.entities || []).map(e => e.toLowerCase()));
       const sharedEntities = [...newEntities].filter(e => entryEntities.has(e));
-      
+
       if (sharedEntities.length > 0) {
         related.push(entry.id);
         continue;
       }
-      
+
       // Check content similarity (simple word overlap)
       const newWords = new Set(newEntry.content.toLowerCase().split(/\s+/));
       const entryWords = new Set(entry.content.toLowerCase().split(/\s+/));
       const sharedWords = [...newWords].filter(w => entryWords.has(w) && w.length > 4);
-      
+
       if (sharedWords.length >= 3) {
         related.push(entry.id);
       }
     }
-    
+
     return related.slice(0, 5); // Limit related memories
   }
 
@@ -286,7 +296,7 @@ class MemorySystem {
     }
 
     // Validate content
-    if (!entry.content || typeof entry.content !== "string") {
+    if (!entry.content || typeof entry.content !== 'string') {
       return null;
     }
 
@@ -306,7 +316,11 @@ class MemorySystem {
     // Validate and sanitize tags
     const tags = (entry.tags || [])
       .slice(0, MAX_TAGS)
-      .map(tag => String(tag).slice(0, MAX_TAG_LENGTH).replace(/[^a-zA-Z0-9_-]/g, ''))
+      .map(tag =>
+        String(tag)
+          .slice(0, MAX_TAG_LENGTH)
+          .replace(/[^a-zA-Z0-9_-]/g, '')
+      )
       .filter(tag => tag.length > 0);
 
     return {
@@ -315,13 +329,13 @@ class MemorySystem {
       content: sanitizedContent,
       importance,
       tags,
-      timestamp: "", // Will be set by caller
+      timestamp: '', // Will be set by caller
       userId: entry.userId,
       entities: entry.entities,
       relatedEntryIds: entry.relatedEntryIds,
       sentiment: entry.sentiment,
       source: entry.source,
-      confidence: entry.confidence || 1.0
+      confidence: entry.confidence || 1.0,
     };
   }
 
@@ -339,20 +353,20 @@ class MemorySystem {
         if (userId && entry.userId && entry.userId !== userId) {
           return false;
         }
-        
+
         const lowerContent = entry.content.toLowerCase();
         const lowerTags = entry.tags.map(t => t.toLowerCase());
-        
+
         // Check direct match
         if (lowerContent.includes(lowerQuery) || lowerTags.some(t => t.includes(lowerQuery))) {
           return true;
         }
-        
+
         // Check word-level match
-        const matchCount = queryWords.filter(w => 
-          lowerContent.includes(w) || lowerTags.some(t => t.includes(w))
+        const matchCount = queryWords.filter(
+          w => lowerContent.includes(w) || lowerTags.some(t => t.includes(w))
         ).length;
-        
+
         return matchCount >= Math.max(1, queryWords.length * 0.5);
       })
       .sort((a, b) => b.importance - a.importance);
@@ -364,21 +378,19 @@ class MemorySystem {
   searchByEntity(query: string): MemoryEntry[] {
     const entries = this.load();
     const queryEntities = this.extractEntities(query).map(e => e.toLowerCase());
-    
+
     if (queryEntities.length === 0) return [];
-    
+
     const relatedIds = new Set<string>();
-    
+
     for (const entity of queryEntities) {
       const ids = this.entityIndex.get(entity);
       if (ids) {
         ids.forEach(id => relatedIds.add(id));
       }
     }
-    
-    return entries
-      .filter(e => relatedIds.has(e.id))
-      .sort((a, b) => b.importance - a.importance);
+
+    return entries.filter(e => relatedIds.has(e.id)).sort((a, b) => b.importance - a.importance);
   }
 
   /**
@@ -386,18 +398,22 @@ class MemorySystem {
    * Finds memories similar in meaning, not just keywords
    */
   async semanticSearch(
-    query: string, 
+    query: string,
     options: { userId?: string; topK?: number; minSimilarity?: number } = {}
   ): Promise<MemoryEntry[]> {
     const entries = this.load();
     const memoryConfig = configManager.getMemoryConfig();
-    const { userId, topK = 5, minSimilarity = memoryConfig.semanticMinSimilarity || 0.75 } = options;
+    const {
+      userId,
+      topK = 5,
+      minSimilarity = memoryConfig.semanticMinSimilarity || 0.75,
+    } = options;
 
     try {
       const similar = await embeddingService.findSimilar(query, {
         userId,
         topK,
-        minSimilarity
+        minSimilarity,
       });
 
       // Map back to full entries
@@ -406,7 +422,7 @@ class MemorySystem {
         .filter((e): e is MemoryEntry => e !== undefined)
         .sort((a, b) => b.importance - a.importance);
     } catch (e) {
-      console.warn("Semantic search failed, falling back to keyword search:", e);
+      console.warn('Semantic search failed, falling back to keyword search:', e);
       return this.search(query, userId);
     }
   }
@@ -417,31 +433,35 @@ class MemorySystem {
   async getConnectedContext(userMessage: string, userId?: string): Promise<string> {
     const entries = this.load();
     const memoryConfig = configManager.getMemoryConfig();
-    
+
     // 1. Direct keyword search
     const directMatches = this.search(userMessage, userId);
-    
+
     // 2. Entity-based search
     const entityMatches = this.searchByEntity(userMessage);
-    
+
     // 3. Semantic search (async)
     let semanticMatches: MemoryEntry[] = [];
     try {
       semanticMatches = await this.semanticSearch(userMessage, { userId, topK: 5 });
     } catch (e) {
-      console.warn("Semantic search failed:", e);
+      console.warn('Semantic search failed:', e);
     }
-    
+
     // 4. Get related memories (2-hop connections)
     const allMatches = new Map<string, MemoryEntry>();
-    const directIds = new Set<string>(directMatches.map((entry) => entry.id));
-    const entityIds = new Set<string>(entityMatches.map((entry) => entry.id));
-    const semanticIds = new Set<string>(semanticMatches.map((entry) => entry.id));
-    
-    for (const entry of [...directMatches.slice(0, 3), ...entityMatches.slice(0, 3), ...semanticMatches.slice(0, 3)]) {
+    const directIds = new Set<string>(directMatches.map(entry => entry.id));
+    const entityIds = new Set<string>(entityMatches.map(entry => entry.id));
+    const semanticIds = new Set<string>(semanticMatches.map(entry => entry.id));
+
+    for (const entry of [
+      ...directMatches.slice(0, 3),
+      ...entityMatches.slice(0, 3),
+      ...semanticMatches.slice(0, 3),
+    ]) {
       if (!entry) continue;
       allMatches.set(entry.id, entry);
-      
+
       // Add related memories (1-hop)
       if (entry.relatedEntryIds) {
         for (const relatedId of entry.relatedEntryIds.slice(0, 2)) {
@@ -452,17 +472,20 @@ class MemorySystem {
         }
       }
     }
-    
+
     // Convert to array and filter by user
     let contextEntries = Array.from(allMatches.values());
     if (userId) {
       contextEntries = contextEntries.filter(e => !e.userId || e.userId === userId);
     }
-    
+
     // Sort by importance and recency
     const now = Date.now();
     const score = (entry: MemoryEntry): number => {
-      const ageDays = Math.max(0, (now - new Date(entry.timestamp).getTime()) / (1000 * 60 * 60 * 24));
+      const ageDays = Math.max(
+        0,
+        (now - new Date(entry.timestamp).getTime()) / (1000 * 60 * 60 * 24)
+      );
       const recencyBoost = Math.max(0, 30 - ageDays);
       const importanceScore = entry.importance * 4;
       const directBoost = directIds.has(entry.id) ? 6 : 0;
@@ -471,8 +494,8 @@ class MemorySystem {
       return importanceScore + recencyBoost + directBoost + entityBoost + semanticBoost;
     };
     contextEntries.sort((a, b) => score(b) - score(a));
-    
-    if (contextEntries.length === 0) return "";
+
+    if (contextEntries.length === 0) return '';
 
     // Format with connection indicators
     return contextEntries
@@ -480,11 +503,11 @@ class MemorySystem {
       .map(e => {
         let line = `- ${e.content}`;
         if (e.entities && e.entities.length > 0) {
-          line += ` [related to: ${e.entities.slice(0, 3).join(", ")}]`;
+          line += ` [related to: ${e.entities.slice(0, 3).join(', ')}]`;
         }
         return line;
       })
-      .join("\n");
+      .join('\n');
   }
 
   /**
@@ -505,23 +528,23 @@ class MemorySystem {
 
     // Get user's name from facts
     const entries = this.load();
-    const userNameFact = entries.find(e =>
-      e.userId === userId &&
-      e.type === "fact" &&
-      e.content.toLowerCase().includes("name is")
+    const userNameFact = entries.find(
+      e => e.userId === userId && e.type === 'fact' && e.content.toLowerCase().includes('name is')
     );
 
     if (userNameFact) {
       const nameMatch = userNameFact.content.match(/name is\s+([A-Z][a-z]+)/i);
       if (nameMatch && nameMatch[1]) {
-        contextParts.push(`# User Identity\nUser's name: ${nameMatch[1]}\nAlways address the user by their name when appropriate.`);
+        contextParts.push(
+          `# User Identity\nUser's name: ${nameMatch[1]}\nAlways address the user by their name when appropriate.`
+        );
       }
     }
 
     // Add personality adjustments
     const personalityPrompt = profiler.getPersonalityPrompt();
     if (personalityPrompt) {
-      contextParts.push("# User Communication Style\n" + personalityPrompt);
+      contextParts.push('# User Communication Style\n' + personalityPrompt);
     }
 
     // Add interests context
@@ -533,77 +556,74 @@ class MemorySystem {
     // Add connected memories (this is the key improvement)
     const connectedMemories = await this.getConnectedContext(userMessage, userId);
     if (connectedMemories) {
-      contextParts.push("# Relevant Context\n" + connectedMemories);
+      contextParts.push('# Relevant Context\n' + connectedMemories);
     }
 
     // Add user facts with high importance
     const userFacts = entries
-      .filter(m => m.userId === userId && m.type === "fact" && m.importance >= 5)
+      .filter(m => m.userId === userId && m.type === 'fact' && m.importance >= 5)
       .slice(0, 10)
       .map(m => `- ${m.content}`)
-      .join("\n");
+      .join('\n');
     if (userFacts) {
-      contextParts.push("# User Facts\n" + userFacts);
+      contextParts.push('# User Facts\n' + userFacts);
     }
 
     // Add user preferences with high importance
     const userPrefs = entries
-      .filter(m => m.userId === userId && m.type === "preference" && m.importance >= 5)
+      .filter(m => m.userId === userId && m.type === 'preference' && m.importance >= 5)
       .slice(0, 5)
       .map(m => `- ${m.content}`)
-      .join("\n");
+      .join('\n');
     if (userPrefs) {
-      contextParts.push("# User Preferences\n" + userPrefs);
+      contextParts.push('# User Preferences\n' + userPrefs);
     }
 
     // Add goals if any
     const userGoals = entries
-      .filter(m => m.userId === userId && m.type === "goal")
+      .filter(m => m.userId === userId && m.type === 'goal')
       .slice(0, 5)
       .map(m => `- ${m.content}`)
-      .join("\n");
+      .join('\n');
     if (userGoals) {
-      contextParts.push("# User Goals\n" + userGoals);
+      contextParts.push('# User Goals\n' + userGoals);
     }
 
-    return contextParts.join("\n\n");
+    return contextParts.join('\n\n');
   }
 
   consolidateConversations(conversationSummary: string, userId?: string): void {
-    const sanitized = conversationSummary
-      .slice(0, MAX_CONTENT_LENGTH)
-      .replace(/^---/gm, '')
-      .trim();
+    const sanitized = conversationSummary.slice(0, MAX_CONTENT_LENGTH).replace(/^---/gm, '').trim();
 
     this.addEntry({
-      type: "conversation",
+      type: 'conversation',
       content: sanitized,
       importance: 3,
-      tags: ["conversation", "summary"],
+      tags: ['conversation', 'summary'],
       userId,
-      source: "consolidation"
+      source: 'consolidation',
     });
   }
 
   recordToolUsage(toolName: string, command: string, userId?: string): void {
     this.addEntry({
-      type: "tool_usage",
+      type: 'tool_usage',
       content: `Used ${toolName}: ${command.slice(0, 500)}`,
       importance: 2,
-      tags: ["tool", toolName.slice(0, 50)],
+      tags: ['tool', toolName.slice(0, 50)],
       userId,
-      source: "tool_execution"
+      source: 'tool_execution',
     });
   }
 
   learnUserPreference(key: string, value: string, userId?: string): void {
     this.addEntry({
-      type: "preference",
+      type: 'preference',
       content: `User prefers ${key.slice(0, 100)}: ${value.slice(0, 500)}`,
       importance: 7,
-      tags: ["preference", key.slice(0, 50)],
+      tags: ['preference', key.slice(0, 50)],
       userId,
-      source: "user_statement"
+      source: 'user_statement',
     });
   }
 
@@ -613,12 +633,12 @@ class MemorySystem {
   extractUserFacts(userId: string, userMessage: string, assistantResponse: string): void {
     const lowerMessage = userMessage.toLowerCase();
     const entities = this.extractEntities(userMessage);
-    
+
     // Enhanced name extraction
     const namePatterns = [
       /(?:my name is|i'm|i am|call me)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i,
       /(?:this is|it's)\s+([A-Z][a-z]+)/i,
-      /^([A-Z][a-z]+)\s+here/i
+      /^([A-Z][a-z]+)\s+here/i,
     ];
 
     for (const pattern of namePatterns) {
@@ -626,13 +646,13 @@ class MemorySystem {
       if (match && match[1]) {
         const name = match[1].trim();
         this.addEntry({
-          type: "fact",
+          type: 'fact',
           content: `User's name is ${name}`,
           importance: 10,
-          tags: ["name", "identity"],
+          tags: ['name', 'identity'],
           userId,
           entities: [name],
-          source: "user_introduction"
+          source: 'user_introduction',
         });
         break;
       }
@@ -641,7 +661,7 @@ class MemorySystem {
     // Enhanced location extraction
     const locationPatterns = [
       /(?:I live in|I'm from|I am from|located in|moving to)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i,
-      /(?:based\s+in|from)\s+([A-Z][a-z]+(?:,\s*[A-Z][a-z]+)?)/i
+      /(?:based\s+in|from)\s+([A-Z][a-z]+(?:,\s*[A-Z][a-z]+)?)/i,
     ];
 
     for (const pattern of locationPatterns) {
@@ -649,13 +669,13 @@ class MemorySystem {
       if (match && match[1]) {
         const location = match[1];
         this.addEntry({
-          type: "fact",
+          type: 'fact',
           content: `User lives in/is from ${location}`,
           importance: 8,
-          tags: ["location", "identity"],
+          tags: ['location', 'identity'],
           userId,
           entities: [location],
-          source: "user_statement"
+          source: 'user_statement',
         });
         break;
       }
@@ -665,7 +685,7 @@ class MemorySystem {
     const workPatterns = [
       /(?:I work as|I'm a|I am a|I work for|employed as)\s+([a-zA-Z\s]+?(?:at|for)\s+[A-Z]\w+)/i,
       /(?:work as|working as)\s+(?:a\s+)?([a-zA-Z\s]+)/i,
-      /(?:I'm|I am)\s+(?:a\s+)?(developer|engineer|designer|manager|student|freelancer|entrepreneur)/i
+      /(?:I'm|I am)\s+(?:a\s+)?(developer|engineer|designer|manager|student|freelancer|entrepreneur)/i,
     ];
 
     for (const pattern of workPatterns) {
@@ -673,13 +693,13 @@ class MemorySystem {
       if (match && match[1]) {
         const work = match[1].trim();
         this.addEntry({
-          type: "fact",
+          type: 'fact',
           content: `User works as ${work}`,
           importance: 8,
-          tags: ["work", "occupation"],
+          tags: ['work', 'occupation'],
           userId,
           entities: entities.filter(e => work.toLowerCase().includes(e.toLowerCase())),
-          source: "user_statement"
+          source: 'user_statement',
         });
       }
     }
@@ -687,7 +707,7 @@ class MemorySystem {
     // Goal detection
     const goalPatterns = [
       /(?:I want to|my goal is|I'm trying to|planning to)\s+(.+?)(?:\.|,|;|$)/i,
-      /(?:want to learn|interested in learning)\s+(.+?)(?:\.|,|;|$)/i
+      /(?:want to learn|interested in learning)\s+(.+?)(?:\.|,|;|$)/i,
     ];
 
     for (const pattern of goalPatterns) {
@@ -695,20 +715,20 @@ class MemorySystem {
       if (match && match[1]) {
         const goal = match[1].trim().slice(0, 200);
         this.addEntry({
-          type: "goal",
+          type: 'goal',
           content: `User wants to ${goal}`,
           importance: 7,
-          tags: ["goal", "aspiration"],
+          tags: ['goal', 'aspiration'],
           userId,
           entities: entities.filter(e => goal.toLowerCase().includes(e.toLowerCase())),
-          source: "user_statement"
+          source: 'user_statement',
         });
       }
     }
 
     // Preference detection (likes)
     const preferencePatterns = [
-      /(?:I like|I love|I prefer|I enjoy|I'm a fan of)\s+(.+?)(?:\.|,|;|because|but|$)/i
+      /(?:I like|I love|I prefer|I enjoy|I'm a fan of)\s+(.+?)(?:\.|,|;|because|but|$)/i,
     ];
 
     for (const pattern of preferencePatterns) {
@@ -716,20 +736,20 @@ class MemorySystem {
       if (match && match[1]) {
         const preference = match[1].trim().slice(0, 150);
         this.addEntry({
-          type: "preference",
+          type: 'preference',
           content: `User likes: ${preference}`,
           importance: 6,
-          tags: ["preference", "interest"],
+          tags: ['preference', 'interest'],
           userId,
           entities: entities.filter(e => preference.toLowerCase().includes(e.toLowerCase())),
-          source: "user_statement"
+          source: 'user_statement',
         });
       }
     }
 
     // Dislike detection
     const dislikePatterns = [
-      /(?:I hate|I dislike|I don't like|I can't stand)\s+(.+?)(?:\.|,|;|$)/i
+      /(?:I hate|I dislike|I don't like|I can't stand)\s+(.+?)(?:\.|,|;|$)/i,
     ];
 
     for (const pattern of dislikePatterns) {
@@ -737,13 +757,13 @@ class MemorySystem {
       if (match && match[1]) {
         const dislike = match[1].trim().slice(0, 150);
         this.addEntry({
-          type: "preference",
+          type: 'preference',
           content: `User dislikes: ${dislike}`,
           importance: 7,
-          tags: ["preference", "dislike"],
+          tags: ['preference', 'dislike'],
           userId,
           entities: entities.filter(e => dislike.toLowerCase().includes(e.toLowerCase())),
-          source: "user_statement"
+          source: 'user_statement',
         });
       }
     }
@@ -751,7 +771,7 @@ class MemorySystem {
     // Relationship detection
     const relationshipPatterns = [
       /(?:my|his|her)\s+(\w+)\s+(?:is|works as)\s+([A-Z][a-z]+)/i,
-      /(?:married to|dating|partner is)\s+([A-Z][a-z]+)/i
+      /(?:married to|dating|partner is)\s+([A-Z][a-z]+)/i,
     ];
 
     for (const pattern of relationshipPatterns) {
@@ -759,13 +779,13 @@ class MemorySystem {
       if (match) {
         const relationship = match[0];
         this.addEntry({
-          type: "relationship",
+          type: 'relationship',
           content: `User mentioned: ${relationship}`,
           importance: 7,
-          tags: ["relationship", "personal"],
+          tags: ['relationship', 'personal'],
           userId,
           entities: entities.filter(e => relationship.toLowerCase().includes(e.toLowerCase())),
-          source: "user_statement"
+          source: 'user_statement',
         });
       }
     }
@@ -787,12 +807,12 @@ class MemorySystem {
 
     // Store learning memory
     this.addEntry({
-      type: "learning",
+      type: 'learning',
       content: `Interaction with ${userId}: "${userMessage.slice(0, 200)}"`,
       importance: 3,
-      tags: ["interaction", "learning"],
+      tags: ['interaction', 'learning'],
       userId,
-      source: "interaction"
+      source: 'interaction',
     });
 
     // Detect and store user preferences from message
@@ -801,12 +821,12 @@ class MemorySystem {
     // Store tool usage pattern if tools were used
     if (toolsUsed && toolsUsed.length > 0) {
       this.addEntry({
-        type: "pattern",
-        content: `User requested help with: ${toolsUsed.join(", ")}`,
+        type: 'pattern',
+        content: `User requested help with: ${toolsUsed.join(', ')}`,
         importance: 4,
-        tags: ["pattern", "tool_usage", ...toolsUsed],
+        tags: ['pattern', 'tool_usage', ...toolsUsed],
         userId,
-        source: "interaction"
+        source: 'interaction',
       });
     }
   }
@@ -819,28 +839,40 @@ class MemorySystem {
     const profile = profiler.loadProfile();
 
     // Detect response length preference
-    if (message.toLowerCase().includes("brief") || message.toLowerCase().includes("short") || message.toLowerCase().includes("quick")) {
-      profile.style.responseLength = "short";
+    if (
+      message.toLowerCase().includes('brief') ||
+      message.toLowerCase().includes('short') ||
+      message.toLowerCase().includes('quick')
+    ) {
+      profile.style.responseLength = 'short';
       profile.style.verbosity = Math.max(1, profile.style.verbosity - 1);
     }
-    if (message.toLowerCase().includes("detailed") || message.toLowerCase().includes("explain") || message.toLowerCase().includes("elaborate")) {
-      profile.style.responseLength = "long";
+    if (
+      message.toLowerCase().includes('detailed') ||
+      message.toLowerCase().includes('explain') ||
+      message.toLowerCase().includes('elaborate')
+    ) {
+      profile.style.responseLength = 'long';
       profile.style.verbosity = Math.min(10, profile.style.verbosity + 1);
     }
 
     // Detect formality preference
-    if (message.toLowerCase().includes("please") && message.toLowerCase().includes("thank")) {
-      profile.style.greetingStyle = "professional";
+    if (message.toLowerCase().includes('please') && message.toLowerCase().includes('thank')) {
+      profile.style.greetingStyle = 'professional';
     }
-    if (message.toLowerCase().includes("hey") || message.toLowerCase().includes("yo")) {
-      profile.style.greetingStyle = "casual";
+    if (message.toLowerCase().includes('hey') || message.toLowerCase().includes('yo')) {
+      profile.style.greetingStyle = 'casual';
     }
 
     // Detect technical preference
-    if (message.toLowerCase().includes("eli5") || message.toLowerCase().includes("explain like i'm 5") || message.toLowerCase().includes("simple")) {
+    if (
+      message.toLowerCase().includes('eli5') ||
+      message.toLowerCase().includes("explain like i'm 5") ||
+      message.toLowerCase().includes('simple')
+    ) {
       profile.style.technicalLevel = Math.max(1, profile.style.technicalLevel - 2);
     }
-    if (message.toLowerCase().includes("technical") || message.toLowerCase().includes("advanced")) {
+    if (message.toLowerCase().includes('technical') || message.toLowerCase().includes('advanced')) {
       profile.style.technicalLevel = Math.min(10, profile.style.technicalLevel + 2);
     }
 
@@ -858,7 +890,7 @@ class MemorySystem {
 
     const config = configManager.getMemoryConfig();
     const cap = Math.max(50, config.perUserEntryCap || 500);
-    const userEntries = entries.filter((entry) => entry.userId === userId);
+    const userEntries = entries.filter(entry => entry.userId === userId);
     if (userEntries.length <= cap) {
       return;
     }
@@ -869,8 +901,8 @@ class MemorySystem {
       return scoreB - scoreA;
     });
 
-    const keepIds = new Set(ranked.slice(0, cap).map((entry) => entry.id));
-    const retained = entries.filter((entry) => entry.userId !== userId || keepIds.has(entry.id));
+    const keepIds = new Set(ranked.slice(0, cap).map(entry => entry.id));
+    const retained = entries.filter(entry => entry.userId !== userId || keepIds.has(entry.id));
     entries.length = 0;
     entries.push(...retained);
   }
@@ -890,17 +922,15 @@ class MemorySystem {
    */
   consolidateMemories(entries: MemoryEntry[]): void {
     // Group by type and find patterns
-    const conversations = entries.filter(e => e.type === "conversation");
-    
+    const conversations = entries.filter(e => e.type === 'conversation');
+
     // If too many conversations, keep only high importance ones
     if (conversations.length > 100) {
-      const kept = conversations
-        .sort((a, b) => b.importance - a.importance)
-        .slice(0, 50);
-      
+      const kept = conversations.sort((a, b) => b.importance - a.importance).slice(0, 50);
+
       // Remove old low-importance conversations
       const keptIds = new Set(kept.map(e => e.id));
-      const filtered = entries.filter(e => e.type !== "conversation" || keptIds.has(e.id));
+      const filtered = entries.filter(e => e.type !== 'conversation' || keptIds.has(e.id));
       entries.length = 0;
       entries.push(...filtered);
     }
@@ -928,7 +958,7 @@ class MemorySystem {
 
   private parseMemoryFile(content: string): MemoryEntry[] {
     const entries: MemoryEntry[] = [];
-    
+
     const blocks = content.split(/^##\s+/m).filter(Boolean);
 
     for (const block of blocks) {
@@ -938,7 +968,7 @@ class MemorySystem {
           entries.push(entry);
         }
       } catch (e) {
-        console.warn("Skipping malformed memory entry");
+        console.warn('Skipping malformed memory entry');
       }
     }
 
@@ -946,11 +976,11 @@ class MemorySystem {
   }
 
   private parseEntryBlock(block: string): MemoryEntry | null {
-    const lines = block.split("\n");
-    
+    const lines = block.split('\n');
+
     const typeLine = lines[0]?.trim();
     const typeMatch = typeLine?.match(/^-?\s*type:\s*(\w+)/);
-    
+
     if (!typeMatch || !VALID_TYPES.has(typeMatch[1] as MemoryType)) {
       return null;
     }
@@ -966,20 +996,25 @@ class MemorySystem {
     const entitiesMatch = block.match(/^-?\s*entities:\s*\[([^\]]*)\]/);
     const relatedIdsMatch = block.match(/^-?\s*relatedEntryIds:\s*\[([^\]]*)\]/);
 
-    let content = contentMatch?.[1]?.trim() || "";
+    let content = contentMatch?.[1]?.trim() || '';
     if (content.length > MAX_CONTENT_LENGTH) {
       content = content.slice(0, MAX_CONTENT_LENGTH);
     }
 
-    const importance = importanceMatch 
+    const importance = importanceMatch
       ? Math.max(1, Math.min(10, parseInt(importanceMatch[1], 10) || 1))
       : 1;
 
     let tags: string[] = [];
     if (tagsMatch?.[1]) {
       tags = tagsMatch[1]
-        .split(",")
-        .map(t => t.trim().slice(0, MAX_TAG_LENGTH).replace(/[^a-zA-Z0-9_-]/g, ''))
+        .split(',')
+        .map(t =>
+          t
+            .trim()
+            .slice(0, MAX_TAG_LENGTH)
+            .replace(/[^a-zA-Z0-9_-]/g, '')
+        )
         .filter(t => t.length > 0)
         .slice(0, MAX_TAGS);
     }
@@ -987,7 +1022,7 @@ class MemorySystem {
     let entities: string[] | undefined;
     if (entitiesMatch?.[1]) {
       entities = entitiesMatch[1]
-        .split(",")
+        .split(',')
         .map(e => e.trim())
         .filter(e => e.length > 0);
     }
@@ -995,7 +1030,7 @@ class MemorySystem {
     let relatedEntryIds: string[] | undefined;
     if (relatedIdsMatch?.[1]) {
       relatedEntryIds = relatedIdsMatch[1]
-        .split(",")
+        .split(',')
         .map(id => id.trim())
         .filter(id => id.length > 0);
     }
@@ -1010,25 +1045,25 @@ class MemorySystem {
       timestamp = new Date().toISOString();
     }
 
-    return { 
+    return {
       id: idMatch?.[1]?.trim() || `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      type, 
-      content, 
-      importance, 
-      tags, 
+      type,
+      content,
+      importance,
+      tags,
       timestamp,
       userId: userIdMatch?.[1]?.trim() || undefined,
       entities,
-      relatedEntryIds
+      relatedEntryIds,
     };
   }
 
   private serializeMemory(entries: MemoryEntry[]): string {
-    let content = "# Memory\n\n";
-    content += "Long-term memory for the agent.\n\n";
+    let content = '# Memory\n\n';
+    content += 'Long-term memory for the agent.\n\n';
 
-    const sorted = entries.sort((a, b) =>
-      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    const sorted = entries.sort(
+      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
     );
 
     for (const entry of sorted) {
@@ -1038,17 +1073,17 @@ class MemorySystem {
       content += `- type: ${entry.type}\n`;
       content += `- content: ${this.escapeValue(entry.content)}\n`;
       content += `- importance: ${entry.importance}\n`;
-      content += `- tags: [${entry.tags.map(t => this.escapeValue(t)).join(", ")}]\n`;
+      content += `- tags: [${entry.tags.map(t => this.escapeValue(t)).join(', ')}]\n`;
       if (entry.userId) {
         content += `- userId: ${entry.userId}\n`;
       }
       if (entry.entities && entry.entities.length > 0) {
-        content += `- entities: [${entry.entities.map(e => this.escapeValue(e)).join(", ")}]\n`;
+        content += `- entities: [${entry.entities.map(e => this.escapeValue(e)).join(', ')}]\n`;
       }
       if (entry.relatedEntryIds && entry.relatedEntryIds.length > 0) {
-        content += `- relatedEntryIds: [${entry.relatedEntryIds.join(", ")}]\n`;
+        content += `- relatedEntryIds: [${entry.relatedEntryIds.join(', ')}]\n`;
       }
-      content += "\n";
+      content += '\n';
     }
 
     return content;

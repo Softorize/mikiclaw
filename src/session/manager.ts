@@ -1,10 +1,10 @@
-import { configManager } from "../config/manager.js";
-import { memorySystem } from "../personality/memory.js";
-import { conversationSummarizer } from "../ai/summarizer.js";
-import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { configManager } from '../config/manager.js';
+import { memorySystem } from '../personality/memory.js';
+import { conversationSummarizer } from '../ai/summarizer.js';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
 
-export type SessionMode = "main" | "per-peer" | "per-channel" | "per-account-channel";
+export type SessionMode = 'main' | 'per-peer' | 'per-channel' | 'per-account-channel';
 
 export interface Session {
   id: string;
@@ -16,10 +16,10 @@ export interface Session {
   createdAt: number;
   lastActive: number;
   messageCount: number;
-  context: Array<{ role: "user" | "assistant"; content: string }>;
-  summary?: string;           // Rolling summary of older conversation
-  topics?: string[];          // Topics discussed in this session
-  pendingSummarization?: boolean;  // Flag for async summarization
+  context: Array<{ role: 'user' | 'assistant'; content: string }>;
+  summary?: string; // Rolling summary of older conversation
+  topics?: string[]; // Topics discussed in this session
+  pendingSummarization?: boolean; // Flag for async summarization
 }
 
 interface ConversationSummary {
@@ -35,7 +35,7 @@ class SessionManager {
   private sessionsDir: string;
 
   constructor() {
-    this.sessionsDir = join(configManager.getWorkspacePath(), "sessions");
+    this.sessionsDir = join(configManager.getWorkspacePath(), 'sessions');
     if (!existsSync(this.sessionsDir)) {
       mkdirSync(this.sessionsDir, { recursive: true });
     }
@@ -44,15 +44,15 @@ class SessionManager {
 
   private loadSessions(): void {
     if (!existsSync(this.sessionsDir)) return;
-    
-    const files = readdirSync(this.sessionsDir).filter(f => f.endsWith(".json"));
+
+    const files = readdirSync(this.sessionsDir).filter(f => f.endsWith('.json'));
     for (const file of files) {
       try {
-        const content = readFileSync(join(this.sessionsDir, file), "utf-8");
+        const content = readFileSync(join(this.sessionsDir, file), 'utf-8');
         const session = JSON.parse(content) as Session;
-        session.channel = session.channel || "telegram";
+        session.channel = session.channel || 'telegram';
         session.context = (session.context || []).filter(
-          (msg) => !!msg && typeof msg.content === "string" && msg.content.trim().length > 0
+          msg => !!msg && typeof msg.content === 'string' && msg.content.trim().length > 0
         );
         this.sessions.set(session.id, session);
       } catch (e) {
@@ -63,30 +63,35 @@ class SessionManager {
 
   private getSessionMode(): SessionMode {
     const config = configManager.load();
-    return config.session?.mode || "main";
+    return config.session?.mode || 'main';
   }
 
   private generateSessionId(chatId: number, userId: string, channel: string): string {
     const mode = this.getSessionMode();
-    
+
     switch (mode) {
-      case "per-peer":
+      case 'per-peer':
         return `peer_${channel}_${userId}`;
-      case "per-channel":
+      case 'per-channel':
         return `channel_${channel}_${chatId}`;
-      case "per-account-channel":
+      case 'per-account-channel':
         return `account_${channel}_${chatId}_${userId}`;
-      case "main":
+      case 'main':
       default:
-        return "main";
+        return 'main';
     }
   }
 
-  getOrCreateSession(chatId: number, userId: string, username?: string, channel: string = "telegram"): Session {
+  getOrCreateSession(
+    chatId: number,
+    userId: string,
+    username?: string,
+    channel: string = 'telegram'
+  ): Session {
     const sessionId = this.generateSessionId(chatId, userId, channel);
-    
+
     let session = this.sessions.get(sessionId);
-    
+
     if (!session) {
       session = {
         id: sessionId,
@@ -101,7 +106,7 @@ class SessionManager {
         context: [],
         summary: undefined,
         topics: [],
-        pendingSummarization: false
+        pendingSummarization: false,
       };
       this.sessions.set(sessionId, session);
       this.saveSession(session);
@@ -112,7 +117,7 @@ class SessionManager {
     return session;
   }
 
-  addMessage(sessionId: string, role: "user" | "assistant", content: string): void {
+  addMessage(sessionId: string, role: 'user' | 'assistant', content: string): void {
     const session = this.sessions.get(sessionId);
     if (!session) return;
 
@@ -124,7 +129,7 @@ class SessionManager {
     session.messageCount++;
 
     // Extract topics from user messages
-    if (role === "user") {
+    if (role === 'user') {
       this.extractTopics(session, content);
     }
 
@@ -155,7 +160,7 @@ class SessionManager {
       /\b(work|job|career|company|team|meeting)\b/gi,
       /\b(learn|study|course|book|tutorial|guide)\b/gi,
       /\b(problem|issue|bug|error|fix|debug)\b/gi,
-      /\b(idea|plan|goal|task|todo|schedule)\b/gi
+      /\b(idea|plan|goal|task|todo|schedule)\b/gi,
     ];
 
     for (const pattern of topicPatterns) {
@@ -187,77 +192,80 @@ class SessionManager {
     try {
       // Get the oldest messages that will be trimmed
       const messagesToSummarize = session.context.slice(0, session.context.length - 30);
-      
+
       if (messagesToSummarize.length < 5) {
         session.pendingSummarization = false;
         return;
       }
 
-      console.log(`📝 Summarizing ${messagesToSummarize.length} messages for session ${session.id}...`);
+      console.log(
+        `📝 Summarizing ${messagesToSummarize.length} messages for session ${session.id}...`
+      );
 
       // Try AI-powered summarization first
       let summary: string;
       let aiSummary = null;
-      
+
       try {
         aiSummary = await conversationSummarizer.summarize(messagesToSummarize, {
-          userId: session.userId
+          userId: session.userId,
         });
       } catch (e) {
-        console.warn("AI summarization failed, using fallback:", e);
+        console.warn('AI summarization failed, using fallback:', e);
       }
 
       if (aiSummary) {
         // Build rich summary from AI analysis
         const parts: string[] = [aiSummary.overview];
-        
+
         if (aiSummary.keyPoints.length > 0) {
-          parts.push(`Key points: ${aiSummary.keyPoints.join("; ")}`);
+          parts.push(`Key points: ${aiSummary.keyPoints.join('; ')}`);
         }
-        
+
         if (aiSummary.userGoals.length > 0) {
-          parts.push(`Goals mentioned: ${aiSummary.userGoals.join("; ")}`);
+          parts.push(`Goals mentioned: ${aiSummary.userGoals.join('; ')}`);
         }
-        
+
         if (aiSummary.actionItems.length > 0) {
-          parts.push(`Action items: ${aiSummary.actionItems.join("; ")}`);
+          parts.push(`Action items: ${aiSummary.actionItems.join('; ')}`);
         }
-        
-        summary = parts.join(" | ");
-        
+
+        summary = parts.join(' | ');
+
         // Update session topics with AI-discovered topics
         if (aiSummary.topics.length > 0) {
-          session.topics = [...new Set([...(session.topics || []), ...aiSummary.topics])].slice(-15);
+          session.topics = [...new Set([...(session.topics || []), ...aiSummary.topics])].slice(
+            -15
+          );
         }
 
         // Store extracted facts as separate memories
         for (const fact of aiSummary.userPreferences) {
           memorySystem.addEntry({
-            type: "preference",
+            type: 'preference',
             content: `User preference: ${fact}`,
             importance: 6,
-            tags: ["preference", "ai_extracted"],
+            tags: ['preference', 'ai_extracted'],
             userId: session.userId,
-            source: "ai_summarization"
+            source: 'ai_summarization',
           });
         }
 
         for (const goal of aiSummary.userGoals) {
           memorySystem.addEntry({
-            type: "goal",
+            type: 'goal',
             content: `User goal: ${goal}`,
             importance: 7,
-            tags: ["goal", "ai_extracted"],
+            tags: ['goal', 'ai_extracted'],
             userId: session.userId,
-            source: "ai_summarization"
+            source: 'ai_summarization',
           });
         }
-
       } else {
         // Fallback to simple summary
         summary = this.createSimpleSummary(messagesToSummarize);
       }
-      
+
       // Update session summary
       if (session.summary) {
         session.summary += `\n\n[Continued]\n${summary}`;
@@ -266,17 +274,20 @@ class SessionManager {
       }
 
       // Archive to long-term memory with AI-enriched content
-      const archiveContent = aiSummary 
-        ? `Session summary: ${aiSummary.overview}. Topics: ${aiSummary.topics.join(", ")}. Tone: ${aiSummary.emotionalTone}.`
+      const archiveContent = aiSummary
+        ? `Session summary: ${aiSummary.overview}. Topics: ${aiSummary.topics.join(', ')}. Tone: ${aiSummary.emotionalTone}.`
         : `Session ${session.id}: ${summary}`;
 
       memorySystem.addEntry({
-        type: "conversation",
+        type: 'conversation',
         content: archiveContent,
         importance: aiSummary ? 5 : 4,
-        tags: ["conversation", "session_summary", "ai_enhanced", ...(session.topics || [])].slice(0, 10),
+        tags: ['conversation', 'session_summary', 'ai_enhanced', ...(session.topics || [])].slice(
+          0,
+          10
+        ),
         userId: session.userId,
-        source: "ai_summarization"
+        source: 'ai_summarization',
       });
 
       // Extract facts using AI if available
@@ -288,9 +299,9 @@ class SessionManager {
               type: fact.type as any,
               content: fact.content,
               importance: Math.round(fact.confidence * 8),
-              tags: [fact.type, "ai_extracted"],
+              tags: [fact.type, 'ai_extracted'],
               userId: session.userId,
-              source: "ai_fact_extraction"
+              source: 'ai_fact_extraction',
             });
           }
         }
@@ -299,8 +310,8 @@ class SessionManager {
         for (let i = 0; i < messagesToSummarize.length - 1; i++) {
           const userMsg = messagesToSummarize[i];
           const assistantMsg = messagesToSummarize[i + 1];
-          
-          if (userMsg.role === "user" && assistantMsg.role === "assistant") {
+
+          if (userMsg.role === 'user' && assistantMsg.role === 'assistant') {
             memorySystem.extractUserFacts(session.userId, userMsg.content, assistantMsg.content);
           }
         }
@@ -308,11 +319,10 @@ class SessionManager {
 
       // Trim the context
       session.context = session.context.slice(-30);
-      
+
       console.log(`✅ Summarization complete for session ${session.id}`);
-      
     } catch (e) {
-      console.warn("Failed to summarize session:", e);
+      console.warn('Failed to summarize session:', e);
     } finally {
       session.pendingSummarization = false;
     }
@@ -324,12 +334,12 @@ class SessionManager {
   private createSimpleSummary(messages: Array<{ role: string; content: string }>): string {
     const userTopics = new Set<string>();
     const keyExchanges: string[] = [];
-    
+
     for (let i = 0; i < messages.length; i += 2) {
       const userMsg = messages[i];
       const assistantMsg = messages[i + 1];
-      
-      if (userMsg && userMsg.role === "user") {
+
+      if (userMsg && userMsg.role === 'user') {
         // Extract first sentence or first 50 chars
         const preview = userMsg.content.split(/[.!?]/, 1)[0].slice(0, 50);
         if (preview.length > 10) {
@@ -340,25 +350,25 @@ class SessionManager {
 
     // Limit exchanges in summary
     const limitedExchanges = keyExchanges.slice(-5);
-    
-    return `Discussed: ${limitedExchanges.join("; ")}`;
+
+    return `Discussed: ${limitedExchanges.join('; ')}`;
   }
 
   /**
    * Get enhanced context including summary for AI
    */
-  getContext(sessionId: string): Array<{ role: "user" | "assistant"; content: string }> {
+  getContext(sessionId: string): Array<{ role: 'user' | 'assistant'; content: string }> {
     const session = this.sessions.get(sessionId);
     if (!session) return [];
 
     // If we have a summary, prepend it as a system message context
-    const context = session.context.filter((msg) => !!msg.content && msg.content.trim().length > 0);
-    
+    const context = session.context.filter(msg => !!msg.content && msg.content.trim().length > 0);
+
     if (session.summary && context.length > 0) {
       // Add summary as context (first message)
       context.unshift({
-        role: "assistant",
-        content: `[Earlier conversation summary: ${session.summary.slice(0, 500)}]`
+        role: 'assistant',
+        content: `[Earlier conversation summary: ${session.summary.slice(0, 500)}]`,
       });
     }
 
@@ -368,9 +378,9 @@ class SessionManager {
   /**
    * Get session metadata for context enrichment
    */
-  getSessionMeta(sessionId: string): { 
-    summary?: string; 
-    topics: string[]; 
+  getSessionMeta(sessionId: string): {
+    summary?: string;
+    topics: string[];
     messageCount: number;
   } | null {
     const session = this.sessions.get(sessionId);
@@ -379,7 +389,7 @@ class SessionManager {
     return {
       summary: session.summary,
       topics: session.topics || [],
-      messageCount: session.messageCount
+      messageCount: session.messageCount,
     };
   }
 
@@ -390,7 +400,7 @@ class SessionManager {
       if (session.context.length > 5) {
         this.summarizeAndArchive(session);
       }
-      
+
       session.context = [];
       session.messageCount = 0;
       session.summary = undefined;
@@ -410,7 +420,7 @@ class SessionManager {
   deleteSession(sessionId: string): void {
     this.sessions.delete(sessionId);
     const filePath = join(this.sessionsDir, `${sessionId}.json`);
-    const { unlinkSync } = require("node:fs");
+    const { unlinkSync } = require('node:fs');
     try {
       unlinkSync(filePath);
     } catch {}

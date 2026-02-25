@@ -1,10 +1,10 @@
-import { Telegraf } from "telegraf";
-import { Cron } from "croner";
-import { loadHeartbeatConfig } from "../personality/soul.js";
-import { configManager } from "../config/manager.js";
-import { getRandomDadJoke, getRandomFunFact, getRandomGreeting } from "../personality/fun.js";
-import { workflowEngine } from "../automation/workflows.js";
-import { logger } from "../utils/logger.js";
+import { Telegraf } from 'telegraf';
+import { Cron } from 'croner';
+import { loadHeartbeatConfig } from '../personality/soul.js';
+import { configManager } from '../config/manager.js';
+import { getRandomDadJoke, getRandomFunFact, getRandomGreeting } from '../personality/fun.js';
+import { workflowEngine } from '../automation/workflows.js';
+import { logger } from '../utils/logger.js';
 
 interface HeartbeatTask {
   name: string;
@@ -21,18 +21,22 @@ export class HeartbeatEngine {
 
   constructor(bot: Telegraf) {
     this.bot = bot;
-    this.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    this.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
   }
 
   start(): void {
     const config = configManager.load();
     const interval = config.heartbeat?.intervalMinutes || 30;
 
-    const idleJob = new Cron(`*/${interval} * * * *`, {
-      timezone: this.timezone
-    }, () => {
-      this.checkIdleUsers();
-    });
+    const idleJob = new Cron(
+      `*/${interval} * * * *`,
+      {
+        timezone: this.timezone,
+      },
+      () => {
+        this.checkIdleUsers();
+      }
+    );
     this.jobs.push(idleJob);
 
     const heartbeatConfig = loadHeartbeatConfig();
@@ -40,11 +44,15 @@ export class HeartbeatEngine {
 
     tasks.forEach(task => {
       try {
-        const job = new Cron(task.schedule, {
-          timezone: this.timezone
-        }, () => {
-          this.runTask(task);
-        });
+        const job = new Cron(
+          task.schedule,
+          {
+            timezone: this.timezone,
+          },
+          () => {
+            this.runTask(task);
+          }
+        );
         this.jobs.push(job);
         console.log(`📅 Scheduled task: ${task.name} (${task.schedule}) [${this.timezone}]`);
       } catch (e) {
@@ -52,13 +60,15 @@ export class HeartbeatEngine {
       }
     });
 
-    console.log(`❤️ Heartbeat engine started with ${this.jobs.length} jobs (timezone: ${this.timezone})`);
+    console.log(
+      `❤️ Heartbeat engine started with ${this.jobs.length} jobs (timezone: ${this.timezone})`
+    );
   }
 
   stop(): void {
     this.jobs.forEach(job => job.stop());
     this.jobs = [];
-    console.log("❤️ Heartbeat engine stopped");
+    console.log('❤️ Heartbeat engine stopped');
   }
 
   trackInteraction(chatId: number): void {
@@ -80,21 +90,21 @@ export class HeartbeatEngine {
   private async sendIdleMessage(chatId: number): Promise<void> {
     const funMessages = [
       "👋 Hey! Haven't heard from you in a while. Everything okay?",
-      "🦞 *tap tap* Is this thing on?",
-      "💭 Thinking about you... and all the cool things we could build together!",
-      "🎮 Just checking in! Need any help with anything?",
+      '🦞 *tap tap* Is this thing on?',
+      '💭 Thinking about you... and all the cool things we could build together!',
+      '🎮 Just checking in! Need any help with anything?',
       "☕ Coffee break? I'm always here if you need me!",
-      "🌟 Miss me yet? 😄",
+      '🌟 Miss me yet? 😄',
       `😄 ${getRandomGreeting()}`,
       `🎉 Fun fact: ${getRandomFunFact()}`,
       `😂 Here's a joke: ${getRandomDadJoke()}`,
-      "🤖 *beep boop* System check complete! How can I help?"
+      '🤖 *beep boop* System check complete! How can I help?',
     ];
-    
+
     const message = funMessages[Math.floor(Math.random() * funMessages.length)];
-    
+
     try {
-      await this.bot.telegram.sendMessage(chatId, message, { parse_mode: "Markdown" });
+      await this.bot.telegram.sendMessage(chatId, message, { parse_mode: 'Markdown' });
     } catch (e) {
       console.warn(`Failed to send idle message to ${chatId}`);
     }
@@ -104,36 +114,36 @@ export class HeartbeatEngine {
     console.log(`📋 Running scheduled task: ${task.name}`);
 
     switch (task.action) {
-      case "summarize_conversations":
+      case 'summarize_conversations':
         await this.summarizeConversations();
         break;
-      case "suggest_skills":
+      case 'suggest_skills':
         await this.suggestSkills();
         break;
-      case "send_status":
+      case 'send_status':
         await this.sendStatusReport();
         break;
-      case "send_joke":
+      case 'send_joke':
         await this.sendJoke();
         break;
-      case "send_fun_fact":
+      case 'send_fun_fact':
         await this.sendFunFact();
         break;
       default:
         console.warn(`Unknown action: ${task.action}`);
     }
 
-    const workflowResult = await workflowEngine.run("heartbeat", {
+    const workflowResult = await workflowEngine.run('heartbeat', {
       taskName: task.name,
       action: task.action,
       schedule: task.schedule,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
     if (workflowResult.executed > 0) {
-      logger.info("Heartbeat workflows executed", {
+      logger.info('Heartbeat workflows executed', {
         taskName: task.name,
         matched: workflowResult.matched,
-        executed: workflowResult.executed
+        executed: workflowResult.executed,
       });
     }
   }
@@ -143,17 +153,17 @@ export class HeartbeatEngine {
     const taskBlocks = config.split(/^## /m).filter(Boolean);
 
     taskBlocks.forEach(block => {
-      const lines = block.split("\n");
+      const lines = block.split('\n');
       const name = lines[0].trim();
-      
+
       const scheduleMatch = block.match(/- schedule:\s*"([^"]+)"/);
       const actionMatch = block.match(/- action:\s*(\w+)/);
-      
+
       if (scheduleMatch && actionMatch) {
         tasks.push({
           name,
           schedule: scheduleMatch[1],
-          action: actionMatch[1]
+          action: actionMatch[1],
         });
       }
     });
@@ -162,39 +172,35 @@ export class HeartbeatEngine {
   }
 
   private async summarizeConversations(): Promise<void> {
-    console.log("📝 Summarizing conversations...");
+    console.log('📝 Summarizing conversations...');
   }
 
   private async suggestSkills(): Promise<void> {
-    console.log("💡 Suggesting skills...");
+    console.log('💡 Suggesting skills...');
   }
 
   private async sendStatusReport(): Promise<void> {
-    console.log("📊 Sending status report...");
+    console.log('📊 Sending status report...');
   }
 
   private async sendJoke(): Promise<void> {
-    console.log("😂 Sending joke...");
+    console.log('😂 Sending joke...');
     this.lastInteraction.forEach(async (_, chatId) => {
       try {
-        await this.bot.telegram.sendMessage(
-          chatId, 
-          `😂 *Daily Joke*\n\n${getRandomDadJoke()}`,
-          { parse_mode: "Markdown" }
-        );
+        await this.bot.telegram.sendMessage(chatId, `😂 *Daily Joke*\n\n${getRandomDadJoke()}`, {
+          parse_mode: 'Markdown',
+        });
       } catch {}
     });
   }
 
   private async sendFunFact(): Promise<void> {
-    console.log("💡 Sending fun fact...");
+    console.log('💡 Sending fun fact...');
     this.lastInteraction.forEach(async (_, chatId) => {
       try {
-        await this.bot.telegram.sendMessage(
-          chatId,
-          `💡 *Did You Know?*\n\n${getRandomFunFact()}`,
-          { parse_mode: "Markdown" }
-        );
+        await this.bot.telegram.sendMessage(chatId, `💡 *Did You Know?*\n\n${getRandomFunFact()}`, {
+          parse_mode: 'Markdown',
+        });
       } catch {}
     });
   }

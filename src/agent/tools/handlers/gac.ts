@@ -1,1 +1,9 @@
-import { accessControl } from "../../security/access_control.js"
+export interface ToolExecutionContext {
+  chatId?: number;
+}
+
+export interface GacResult {
+  success: boolean;
+  data?: unknown;
+  error?: string;
+}

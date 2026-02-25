@@ -11,8 +11,7 @@ const ConfigSchema = z.object({
   telegram: z.object({
     botToken: z.string().optional(),
     allowedUsers: z.array(z.string()).optional()
-  ,
-  ,
+  }),
   ai: z.object({
     provider: AIProviderSchema.default("anthropic"),
     model: z.string().optional(),
@@ -193,9 +192,8 @@ class ConfigManager {
     return {
       telegram: {
         botToken: undefined,
-        
+        allowedUsers: undefined
       },
-      ,
       ai: {
         provider: "anthropic",
         model: "claude-sonnet-4-20250514",

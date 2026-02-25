@@ -1,8 +1,8 @@
-import { createServer, IncomingMessage, ServerResponse } from "node:http";
-import { createHmac, timingSafeEqual } from "node:crypto";
-import { configManager } from "../config/manager.js";
-import { logger } from "../utils/logger.js";
-import { workflowEngine } from "../automation/workflows.js";
+import { createServer, IncomingMessage, ServerResponse } from 'node:http';
+import { createHmac, timingSafeEqual } from 'node:crypto';
+import { configManager } from '../config/manager.js';
+import { logger } from '../utils/logger.js';
+import { workflowEngine } from '../automation/workflows.js';
 
 export interface WebhookEvent {
   type: string;
@@ -13,7 +13,7 @@ export interface WebhookEvent {
 export interface WebhookEndpoint {
   path: string;
   url: string;
-  method: "GET" | "POST";
+  method: 'GET' | 'POST';
   events: string[];
   secret?: string;
   allowedIps?: string[];
@@ -33,18 +33,18 @@ class WebhookServer {
     const config = configManager.load();
 
     if (!config.webhooks?.enabled) {
-      logger.info("Webhooks disabled");
+      logger.info('Webhooks disabled');
       return;
     }
 
     this.port = config.webhooks?.port || 18791;
 
     this.server = createServer((req: IncomingMessage, res: ServerResponse) => {
-      this.handleRequest(req, res).catch((error) => {
-        logger.error("Webhook request failed", { error: String(error) });
+      this.handleRequest(req, res).catch(error => {
+        logger.error('Webhook request failed', { error: String(error) });
         if (!res.headersSent) {
-          res.writeHead(500, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ error: "Internal server error" }));
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Internal server error' }));
         }
       });
     });
@@ -58,65 +58,67 @@ class WebhookServer {
     if (this.server) {
       this.server.close();
       this.server = null;
-      logger.info("Webhook server stopped");
+      logger.info('Webhook server stopped');
     }
   }
 
   private async handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const config = configManager.load();
-    const url = new URL(req.url || "/", "http://localhost");
-    const method = (req.method || "GET").toUpperCase() as "GET" | "POST";
+    const url = new URL(req.url || '/', 'http://localhost');
+    const method = (req.method || 'GET').toUpperCase() as 'GET' | 'POST';
 
-    logger.info("Webhook received", { url: url.pathname, method });
+    logger.info('Webhook received', { url: url.pathname, method });
 
-    if (method === "GET" && url.pathname === "/health") {
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ status: "ok" }));
+    if (method === 'GET' && url.pathname === '/health') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'ok' }));
       return;
     }
 
     const endpoints = config.webhooks?.endpoints || [];
-    const matchingEndpoints = endpoints.filter(endpoint => endpoint.path === url.pathname && endpoint.method === method);
+    const matchingEndpoints = endpoints.filter(
+      endpoint => endpoint.path === url.pathname && endpoint.method === method
+    );
 
     if (matchingEndpoints.length === 0) {
-      res.writeHead(404, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "No matching webhook endpoint" }));
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'No matching webhook endpoint' }));
       return;
     }
 
     const remoteIp = this.getRemoteIp(req);
     const rateLimit = config.webhooks?.rateLimitPerMinute || 60;
     if (!this.isWithinRateLimit(remoteIp, rateLimit)) {
-      logger.warn("Webhook request rate limited", { remoteIp, rateLimit });
-      res.writeHead(429, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "Too many requests" }));
+      logger.warn('Webhook request rate limited', { remoteIp, rateLimit });
+      res.writeHead(429, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Too many requests' }));
       return;
     }
 
     let data: Record<string, unknown>;
-    let body = "";
+    let body = '';
 
-    if (method === "POST") {
+    if (method === 'POST') {
       const maxPayload = config.webhooks?.maxPayloadBytes || 1024 * 1024;
       try {
         body = await this.readBody(req, maxPayload);
       } catch (error) {
-        const message = error instanceof Error ? error.message : "Invalid payload";
-        const statusCode = message.includes("Payload too large") ? 413 : 400;
-        res.writeHead(statusCode, { "Content-Type": "application/json" });
+        const message = error instanceof Error ? error.message : 'Invalid payload';
+        const statusCode = message.includes('Payload too large') ? 413 : 400;
+        res.writeHead(statusCode, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: message }));
         return;
       }
 
       try {
         const parsed = JSON.parse(body);
-        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-          throw new Error("Payload must be a JSON object");
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+          throw new Error('Payload must be a JSON object');
         }
         data = parsed as Record<string, unknown>;
       } catch {
-        res.writeHead(400, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: "Invalid JSON payload" }));
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid JSON payload' }));
         return;
       }
     } else {
@@ -124,25 +126,25 @@ class WebhookServer {
       body = JSON.stringify(data);
     }
 
-    const signatureHeader = req.headers["x-mikiclaw-signature"];
-    const timestampHeader = req.headers["x-mikiclaw-timestamp"];
+    const signatureHeader = req.headers['x-mikiclaw-signature'];
+    const timestampHeader = req.headers['x-mikiclaw-timestamp'];
 
     let delivered = 0;
 
     for (const endpoint of matchingEndpoints) {
       if (!this.isIpAllowed(remoteIp, endpoint.allowedIps)) {
-        logger.warn("Webhook IP rejected", { endpoint: endpoint.path, remoteIp });
+        logger.warn('Webhook IP rejected', { endpoint: endpoint.path, remoteIp });
         continue;
       }
 
       const secret = endpoint.secret || config.webhooks?.secret;
       if (!secret) {
-        logger.warn("Webhook endpoint missing secret", { endpoint: endpoint.path });
+        logger.warn('Webhook endpoint missing secret', { endpoint: endpoint.path });
         continue;
       }
 
       if (!this.verifySignature(body, signatureHeader, timestampHeader, secret)) {
-        logger.warn("Webhook signature verification failed", { endpoint: endpoint.path, remoteIp });
+        logger.warn('Webhook signature verification failed', { endpoint: endpoint.path, remoteIp });
         continue;
       }
 
@@ -151,50 +153,54 @@ class WebhookServer {
     }
 
     if (delivered === 0) {
-      res.writeHead(403, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "Unauthorized webhook request" }));
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized webhook request' }));
       return;
     }
 
-    const workflowResult = await workflowEngine.run("webhook", {
-      path: url.pathname,
-      method,
-      remoteIp,
-      data
-    }, {
-      emitEvent: async (eventType, eventData) => {
-        await this.triggerEvent(eventType, eventData);
+    const workflowResult = await workflowEngine.run(
+      'webhook',
+      {
+        path: url.pathname,
+        method,
+        remoteIp,
+        data,
+      },
+      {
+        emitEvent: async (eventType, eventData) => {
+          await this.triggerEvent(eventType, eventData);
+        },
       }
-    });
+    );
     if (workflowResult.executed > 0) {
-      logger.info("Webhook workflows executed", {
+      logger.info('Webhook workflows executed', {
         path: url.pathname,
         matched: workflowResult.matched,
-        executed: workflowResult.executed
+        executed: workflowResult.executed,
       });
     }
 
-    res.writeHead(200, { "Content-Type": "application/json" });
+    res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ success: true, delivered }));
   }
 
   private async readBody(req: IncomingMessage, maxBytes: number): Promise<string> {
     return await new Promise((resolve, reject) => {
-      let body = "";
+      let body = '';
       let size = 0;
 
-      req.on("data", (chunk: Buffer) => {
+      req.on('data', (chunk: Buffer) => {
         size += chunk.length;
         if (size > maxBytes) {
-          reject(new Error("Payload too large"));
+          reject(new Error('Payload too large'));
           req.destroy();
           return;
         }
-        body += chunk.toString("utf-8");
+        body += chunk.toString('utf-8');
       });
 
-      req.on("end", () => resolve(body));
-      req.on("error", reject);
+      req.on('end', () => resolve(body));
+      req.on('error', reject);
     });
   }
 
@@ -226,7 +232,7 @@ class WebhookServer {
     }
 
     const payload = `${timestampValue}.${body}`;
-    const expectedSignature = `sha256=${createHmac("sha256", secret).update(payload).digest("hex")}`;
+    const expectedSignature = `sha256=${createHmac('sha256', secret).update(payload).digest('hex')}`;
 
     const providedBuffer = Buffer.from(signatureValue);
     const expectedBuffer = Buffer.from(expectedSignature);
@@ -259,27 +265,31 @@ class WebhookServer {
   }
 
   private getRemoteIp(req: IncomingMessage): string {
-    const forwardedFor = req.headers["x-forwarded-for"];
-    if (typeof forwardedFor === "string" && forwardedFor.length > 0) {
-      return forwardedFor.split(",")[0].trim();
+    const forwardedFor = req.headers['x-forwarded-for'];
+    if (typeof forwardedFor === 'string' && forwardedFor.length > 0) {
+      return forwardedFor.split(',')[0].trim();
     }
 
-    const address = req.socket.remoteAddress || "unknown";
-    return address.startsWith("::ffff:") ? address.slice(7) : address;
+    const address = req.socket.remoteAddress || 'unknown';
+    return address.startsWith('::ffff:') ? address.slice(7) : address;
   }
 
-  private async processWebhook(endpoint: WebhookEndpoint, path: string, data: Record<string, unknown>): Promise<void> {
+  private async processWebhook(
+    endpoint: WebhookEndpoint,
+    path: string,
+    data: Record<string, unknown>
+  ): Promise<void> {
     try {
       const event: WebhookEvent = {
-        type: "webhook.trigger",
+        type: 'webhook.trigger',
         timestamp: Date.now(),
-        data: { path, ...data }
+        data: { path, ...data },
       };
 
       await this.sendToEndpoint(endpoint, event);
-      logger.info("Webhook triggered", { path, endpoint: endpoint.url });
+      logger.info('Webhook triggered', { path, endpoint: endpoint.url });
     } catch (error) {
-      logger.error("Webhook send failed", { error: String(error), path });
+      logger.error('Webhook send failed', { error: String(error), path });
     }
   }
 
@@ -288,27 +298,31 @@ class WebhookServer {
       const body = JSON.stringify(event);
       const timestamp = Math.floor(Date.now() / 1000).toString();
       const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-        "X-Mikiclaw-Event": event.type
+        'Content-Type': 'application/json',
+        'X-Mikiclaw-Event': event.type,
       };
 
       if (endpoint.secret) {
         const payload = `${timestamp}.${body}`;
-        headers["X-Mikiclaw-Timestamp"] = timestamp;
-        headers["X-Mikiclaw-Signature"] = `sha256=${createHmac("sha256", endpoint.secret).update(payload).digest("hex")}`;
+        headers['X-Mikiclaw-Timestamp'] = timestamp;
+        headers['X-Mikiclaw-Signature'] =
+          `sha256=${createHmac('sha256', endpoint.secret).update(payload).digest('hex')}`;
       }
 
       const response = await fetch(endpoint.url, {
-        method: "POST",
+        method: 'POST',
         headers,
-        body
+        body,
       });
 
       if (!response.ok) {
-        logger.warn("Webhook endpoint returned non-2xx", { endpoint: endpoint.url, status: response.status });
+        logger.warn('Webhook endpoint returned non-2xx', {
+          endpoint: endpoint.url,
+          status: response.status,
+        });
       }
     } catch (error) {
-      logger.error("Failed to send webhook", { error: String(error), url: endpoint.url });
+      logger.error('Failed to send webhook', { error: String(error), url: endpoint.url });
     }
   }
 
@@ -317,11 +331,11 @@ class WebhookServer {
     const endpoints = config.webhooks?.endpoints || [];
 
     for (const endpoint of endpoints) {
-      if (endpoint.events.includes(eventType) || endpoint.events.includes("*")) {
+      if (endpoint.events.includes(eventType) || endpoint.events.includes('*')) {
         const event: WebhookEvent = {
           type: eventType,
           timestamp: Date.now(),
-          data
+          data,
         };
         await this.sendToEndpoint(endpoint, event);
       }

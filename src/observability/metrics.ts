@@ -26,7 +26,7 @@ class ObservabilityStore {
     failures: 0,
     estimatedInputTokens: 0,
     estimatedOutputTokens: 0,
-    estimatedCostUsd: 0
+    estimatedCostUsd: 0,
   };
   private providerStats = new Map<string, ProviderStat>();
   private toolStats = new Map<string, ToolStat>();
@@ -39,7 +39,7 @@ class ObservabilityStore {
       userId,
       chatId,
       channel,
-      startedAt: Date.now()
+      startedAt: Date.now(),
     });
 
     this.totals.requests += 1;
@@ -73,7 +73,7 @@ class ObservabilityStore {
       const current = this.providerStats.get(details.provider) || {
         requests: 0,
         failures: 0,
-        totalLatencyMs: 0
+        totalLatencyMs: 0,
       };
       current.requests += 1;
       current.totalLatencyMs += latency;
@@ -84,7 +84,10 @@ class ObservabilityStore {
     }
 
     this.totals.estimatedInputTokens += Math.max(0, Math.floor(details.estimatedInputTokens || 0));
-    this.totals.estimatedOutputTokens += Math.max(0, Math.floor(details.estimatedOutputTokens || 0));
+    this.totals.estimatedOutputTokens += Math.max(
+      0,
+      Math.floor(details.estimatedOutputTokens || 0)
+    );
     this.totals.estimatedCostUsd += Math.max(0, details.estimatedCostUsd || 0);
   }
 
@@ -92,7 +95,7 @@ class ObservabilityStore {
     const current = this.toolStats.get(toolName) || {
       calls: 0,
       failures: 0,
-      totalLatencyMs: 0
+      totalLatencyMs: 0,
     };
 
     current.calls += 1;
@@ -110,7 +113,7 @@ class ObservabilityStore {
         requests: stat.requests,
         failures: stat.failures,
         avgLatencyMs: stat.requests > 0 ? Math.round(stat.totalLatencyMs / stat.requests) : 0,
-        errorRate: stat.requests > 0 ? Number((stat.failures / stat.requests).toFixed(4)) : 0
+        errorRate: stat.requests > 0 ? Number((stat.failures / stat.requests).toFixed(4)) : 0,
       };
     }
 
@@ -120,7 +123,7 @@ class ObservabilityStore {
         calls: stat.calls,
         failures: stat.failures,
         avgLatencyMs: stat.calls > 0 ? Math.round(stat.totalLatencyMs / stat.calls) : 0,
-        errorRate: stat.calls > 0 ? Number((stat.failures / stat.calls).toFixed(4)) : 0
+        errorRate: stat.calls > 0 ? Number((stat.failures / stat.calls).toFixed(4)) : 0,
       };
     }
 
@@ -129,11 +132,11 @@ class ObservabilityStore {
       activeRequests: this.activeRequests.size,
       totals: {
         ...this.totals,
-        estimatedCostUsd: Number(this.totals.estimatedCostUsd.toFixed(6))
+        estimatedCostUsd: Number(this.totals.estimatedCostUsd.toFixed(6)),
       },
       channels: Object.fromEntries(this.channelStats.entries()),
       providers: providerStats,
-      tools: toolStats
+      tools: toolStats,
     };
   }
 }

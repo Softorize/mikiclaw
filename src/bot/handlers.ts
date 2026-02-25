@@ -1,12 +1,12 @@
-import { Context } from "telegraf";
-import { runAgent } from "../agent/runner.js";
-import { emotionalState } from "../personality/emotional_state.js";
-import { memorySystem } from "../personality/memory.js";
-import { socialGraph } from "../personality/social_graph.js";
-import { UserProfiler } from "../personality/user_profiler.js";
-import { configManager } from "../config/manager.js";
-import { logger } from "../utils/logger.js";
-import { telegramAdapter } from "../channels/telegram_adapter.js";
+import { Context } from 'telegraf';
+import { runAgent } from '../agent/runner.js';
+import { emotionalState } from '../personality/emotional_state.js';
+import { memorySystem } from '../personality/memory.js';
+import { socialGraph } from '../personality/social_graph.js';
+import { UserProfiler } from '../personality/user_profiler.js';
+import { configManager } from '../config/manager.js';
+import { logger } from '../utils/logger.js';
+import { telegramAdapter } from '../channels/telegram_adapter.js';
 import {
   checkEasterEgg,
   getReaction,
@@ -14,8 +14,8 @@ import {
   getRandomDadJoke,
   getRandomFunFact,
   getAdaptiveJoke,
-  detectJokeReaction
-} from "../personality/fun.js";
+  detectJokeReaction,
+} from '../personality/fun.js';
 
 interface MessageContext {
   message: string;
@@ -28,30 +28,30 @@ interface MessageContext {
 async function transcribeVoiceWithOpenAI(audio: Buffer, filename: string): Promise<string> {
   const apiKey = configManager.load().ai?.providers?.openai?.apiKey;
   if (!apiKey) {
-    throw new Error("Voice transcription needs an OpenAI API key in ai.providers.openai.apiKey");
+    throw new Error('Voice transcription needs an OpenAI API key in ai.providers.openai.apiKey');
   }
 
   const form = new FormData();
-  form.append("model", "whisper-1");
-  form.append("response_format", "json");
-  form.append("file", new Blob([new Uint8Array(audio)], { type: "audio/ogg" }), filename);
+  form.append('model', 'whisper-1');
+  form.append('response_format', 'json');
+  form.append('file', new Blob([new Uint8Array(audio)], { type: 'audio/ogg' }), filename);
 
-  const response = await fetch("https://api.openai.com/v1/audio/transcriptions", {
-    method: "POST",
+  const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+    method: 'POST',
     headers: {
-      Authorization: `Bearer ${apiKey}`
+      Authorization: `Bearer ${apiKey}`,
     },
-    body: form
+    body: form,
   });
 
   if (!response.ok) {
-    const details = await response.text().catch(() => "");
+    const details = await response.text().catch(() => '');
     throw new Error(`Transcription failed (${response.status}): ${details.slice(0, 300)}`);
   }
 
-  const payload = await response.json() as { text?: string };
+  const payload = (await response.json()) as { text?: string };
   if (!payload.text || !payload.text.trim()) {
-    throw new Error("Transcription returned empty text");
+    throw new Error('Transcription returned empty text');
   }
 
   return payload.text.trim();
@@ -59,7 +59,7 @@ async function transcribeVoiceWithOpenAI(audio: Buffer, filename: string): Promi
 
 async function replySafe(ctx: Context, text: string): Promise<void> {
   try {
-    await ctx.reply(text, { parse_mode: "Markdown" });
+    await ctx.reply(text, { parse_mode: 'Markdown' });
   } catch (error) {
     const errorText = error instanceof Error ? error.message : String(error);
     if (errorText.includes("can't parse entities")) {
@@ -81,9 +81,9 @@ async function handleEasterEgg(ctx: Context, text: string, userId: string): Prom
 
   // Get current emotional state to decide if easter egg is appropriate
   const emotion = emotionalState.getCurrent(userId);
-  
+
   // Don't interrupt serious conversations with easter eggs
-  if (emotion.currentMood === "serious" || emotion.currentMood === "concerned") {
+  if (emotion.currentMood === 'serious' || emotion.currentMood === 'concerned') {
     // Only allow reactions, not text responses
     if (easterEgg.reaction) {
       try {
@@ -120,12 +120,17 @@ async function handleEasterEgg(ctx: Context, text: string, userId: string): Prom
  */
 async function addPersonalityTouch(response: string, userId: string): Promise<string> {
   // Skip if response already has personality elements
-  if (response.includes("🎉") || response.includes("😂") || response.includes("💡")) {
+  if (response.includes('🎉') || response.includes('😂') || response.includes('💡')) {
     return response;
   }
 
   // Keep structured/tool outputs concise.
-  if (response.length > 600 || response.includes("|") || /\n- /.test(response) || /\n\d+\./.test(response)) {
+  if (
+    response.length > 600 ||
+    response.includes('|') ||
+    /\n- /.test(response) ||
+    /\n\d+\./.test(response)
+  ) {
     return response;
   }
 
@@ -135,26 +140,26 @@ async function addPersonalityTouch(response: string, userId: string): Promise<st
     return response;
   }
 
-  let touch = "";
+  let touch = '';
 
   // Get user's humor preference
   const profiler = new UserProfiler(userId);
   const preference = profiler.getHumorPreference();
 
   switch (personalityCheck.type) {
-    case "joke":
+    case 'joke':
       // Use adaptive joke selection based on learned preference
-      touch = `\n\n😄 ${getAdaptiveJoke(preference, "dad")}`;
+      touch = `\n\n😄 ${getAdaptiveJoke(preference, 'dad')}`;
       break;
 
-    case "fact":
+    case 'fact':
       // Add interesting fact
       touch = `\n\n💡 By the way, did you know? ${getRandomFunFact()}`;
       break;
 
-    case "greeting":
+    case 'greeting':
       // Warm closing for positive conversations
-      touch = "\n\nLet me know if you need anything else! 🌟";
+      touch = '\n\nLet me know if you need anything else! 🌟';
       break;
   }
 
@@ -162,13 +167,13 @@ async function addPersonalityTouch(response: string, userId: string): Promise<st
 }
 
 export async function messageHandler(ctx: Context) {
-  const text = ctx.message && "text" in ctx.message ? ctx.message.text : null;
+  const text = ctx.message && 'text' in ctx.message ? ctx.message.text : null;
 
   if (!text) {
     return;
   }
 
-  if (text.startsWith("/")) {
+  if (text.startsWith('/')) {
     return;
   }
 
@@ -185,14 +190,14 @@ export async function messageHandler(ctx: Context) {
   // Update emotional state before processing
   emotionalState.detectFromMessage(userId, text);
 
-  await ctx.sendChatAction("typing");
+  await ctx.sendChatAction('typing');
 
   const mctx: MessageContext = {
     message: text,
     userId,
     username,
     chatId,
-    channel
+    channel,
   };
 
   try {
@@ -205,32 +210,31 @@ export async function messageHandler(ctx: Context) {
 
     // Track that we successfully responded
     emotionalState.updateFromResponse(userId, response);
-    
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    console.error("Agent error:", errorMessage);
-    
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Agent error:', errorMessage);
+
     // Try to react with appropriate emotion
     try {
       const emotion = emotionalState.getCurrent(userId);
       if (emotion.valence < 0) {
-        await ctx.react("💙" as any); // Supportive reaction
+        await ctx.react('💙' as any); // Supportive reaction
       } else {
-        await ctx.react("😅" as any); // Light-hearted reaction
+        await ctx.react('😅' as any); // Light-hearted reaction
       }
     } catch {}
-    
+
     // Personalized error message based on relationship length
     const profiler = memorySystem.getUserProfiler(userId);
     const profile = profiler.loadProfile();
-    
-    let errorResponse = "❌ Sorry, something went wrong";
+
+    let errorResponse = '❌ Sorry, something went wrong';
     if (profile.style.interactionCount > 10) {
       errorResponse += `. I'm having a bit of trouble right now. Mind trying again?`;
     } else {
       errorResponse += `: ${errorMessage}`;
     }
-    
+
     await ctx.reply(errorResponse);
   }
 }
@@ -239,7 +243,7 @@ export async function messageHandler(ctx: Context) {
  * Handler for voice messages - transcribe and process
  */
 export async function voiceHandler(ctx: Context) {
-  const voice = ctx.message && "voice" in ctx.message ? ctx.message.voice : null;
+  const voice = ctx.message && 'voice' in ctx.message ? ctx.message.voice : null;
   if (!voice) {
     await ctx.reply("🎤 I couldn't read that voice message. Please try again.");
     return;
@@ -247,18 +251,18 @@ export async function voiceHandler(ctx: Context) {
 
   const channelContext = telegramAdapter.toMessageContext(ctx);
   if (!channelContext) {
-    await ctx.reply("❌ Chat context is missing for this voice message.");
+    await ctx.reply('❌ Chat context is missing for this voice message.');
     return;
   }
 
   const { chatId, userId, username, channel } = channelContext;
 
   if (voice.file_size && voice.file_size > 24 * 1024 * 1024) {
-    await ctx.reply("🎤 Voice file is too large for transcription (max ~24MB).");
+    await ctx.reply('🎤 Voice file is too large for transcription (max ~24MB).');
     return;
   }
 
-  await ctx.sendChatAction("typing");
+  await ctx.sendChatAction('typing');
 
   try {
     const fileLink = await ctx.telegram.getFileLink(voice.file_id);
@@ -268,26 +272,29 @@ export async function voiceHandler(ctx: Context) {
     }
 
     const audioBytes = Buffer.from(await audioResponse.arrayBuffer());
-    const transcript = await transcribeVoiceWithOpenAI(audioBytes, `${voice.file_unique_id || Date.now()}.ogg`);
+    const transcript = await transcribeVoiceWithOpenAI(
+      audioBytes,
+      `${voice.file_unique_id || Date.now()}.ogg`
+    );
 
     let response = await runAgent({
       message: transcript,
       userId,
       username,
       chatId,
-      channel
+      channel,
     });
 
     response = await addPersonalityTouch(response, userId);
     await replySafe(ctx, `🎤 *You said:* ${transcript}\n\n${response}`);
     emotionalState.updateFromResponse(userId, response);
   } catch (error) {
-    logger.error("Voice handler failed", {
+    logger.error('Voice handler failed', {
       error: String(error),
       userId,
-      chatId
+      chatId,
     });
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     await ctx.reply(`❌ Voice processing failed: ${errorMessage}`);
   }
 }
@@ -296,18 +303,17 @@ export async function voiceHandler(ctx: Context) {
  * Handler for new chat members - personalized greeting
  */
 export async function newMemberHandler(ctx: Context) {
-  const newMembers = ctx.message && "new_chat_members" in ctx.message 
-    ? ctx.message.new_chat_members 
-    : [];
-  
+  const newMembers =
+    ctx.message && 'new_chat_members' in ctx.message ? ctx.message.new_chat_members : [];
+
   for (const member of newMembers) {
     if (member.is_bot) continue;
-    
+
     const greeting = getRandomGreeting();
     await ctx.reply(
       `${greeting} Welcome, ${member.first_name}! I'm Miki, your AI assistant. ` +
-      `Feel free to ask me anything or just chat! 🦞`,
-      { parse_mode: "Markdown" }
+        `Feel free to ask me anything or just chat! 🦞`,
+      { parse_mode: 'Markdown' }
     );
   }
 }

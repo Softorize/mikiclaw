@@ -18,14 +18,19 @@ class LoopDetector {
   private warningThreshold: number = 10;
   private criticalThreshold: number = 20;
 
-  recordCall(chatId: number, toolName: string, input: Record<string, unknown>, resultLength: number): void {
+  recordCall(
+    chatId: number,
+    toolName: string,
+    input: Record<string, unknown>,
+    resultLength: number
+  ): void {
     const history = this.history.get(chatId) || [];
-    
+
     history.push({
       toolName,
       input: JSON.stringify(input),
       timestamp: Date.now(),
-      resultLength
+      resultLength,
     });
 
     if (history.length > this.maxHistory) {
@@ -37,13 +42,13 @@ class LoopDetector {
 
   detect(chatId: number): LoopDetectionResult {
     const history = this.history.get(chatId) || [];
-    
+
     if (history.length < this.warningThreshold) {
       return { isLooping: false, warning: null, shouldStop: false, reason: null };
     }
 
     const recentCalls = history.slice(-this.criticalThreshold);
-    
+
     const sameToolCalls = recentCalls.filter((call, i) => {
       if (i === 0) return true;
       return call.toolName === recentCalls[0].toolName;
@@ -61,7 +66,7 @@ class LoopDetector {
           isLooping: true,
           warning: null,
           shouldStop: true,
-          reason: `Detected exact same tool call (${toolName}) repeated ${sameInputs.length} times`
+          reason: `Detected exact same tool call (${toolName}) repeated ${sameInputs.length} times`,
         };
       }
 
@@ -69,7 +74,7 @@ class LoopDetector {
         isLooping: true,
         warning: `Warning: ${toolName} called ${sameToolCalls.length} times in a row`,
         shouldStop: false,
-        reason: null
+        reason: null,
       };
     }
 
@@ -89,7 +94,7 @@ class LoopDetector {
   private detectPollNoProgress(recentCalls: LoopEntry[]): LoopDetectionResult | null {
     if (recentCalls.length < 8) return null;
 
-    const pollTools = ["search", "web_search", "glob", "grep", "read_file"];
+    const pollTools = ['search', 'web_search', 'glob', 'grep', 'read_file'];
     let pollCount = 0;
     let noProgressCount = 0;
 
@@ -105,9 +110,9 @@ class LoopDetector {
     if (pollCount >= 6 && noProgressCount >= 4) {
       return {
         isLooping: true,
-        warning: "Warning: Multiple web searches returning no results",
+        warning: 'Warning: Multiple web searches returning no results',
         shouldStop: true,
-        reason: "Poll-no-progress pattern detected"
+        reason: 'Poll-no-progress pattern detected',
       };
     }
 
@@ -118,22 +123,28 @@ class LoopDetector {
     if (recentCalls.length < 6) return null;
 
     const lastFew = recentCalls.slice(-6);
-    const toolSequence = lastFew.map(c => c.toolName).join(",");
+    const toolSequence = lastFew.map(c => c.toolName).join(',');
 
     const patterns = [
-      "read_file,write_file,read_file,write_file",
-      "bash,bash,bash,bash",
-      "search,read_file,search,read_file"
+      'read_file,write_file,read_file,write_file',
+      'bash,bash,bash,bash',
+      'search,read_file,search,read_file',
     ];
 
     for (const pattern of patterns) {
-      const patternTools = pattern.split(",");
-      if (this.matchesPattern(lastFew.map(c => c.toolName), patternTools, 4)) {
+      const patternTools = pattern.split(',');
+      if (
+        this.matchesPattern(
+          lastFew.map(c => c.toolName),
+          patternTools,
+          4
+        )
+      ) {
         return {
           isLooping: true,
-          warning: "Warning: Detected alternating pattern",
+          warning: 'Warning: Detected alternating pattern',
           shouldStop: true,
-          reason: "Ping-pong pattern detected"
+          reason: 'Ping-pong pattern detected',
         };
       }
     }
@@ -143,7 +154,7 @@ class LoopDetector {
 
   private matchesPattern(actual: string[], pattern: string[], minMatches: number): boolean {
     if (actual.length < pattern.length) return false;
-    
+
     let matches = 0;
     for (let i = 0; i <= actual.length - pattern.length; i++) {
       let match = true;

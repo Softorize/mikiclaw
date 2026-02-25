@@ -1,9 +1,9 @@
-import { configManager } from "../config/manager.js";
-import { aiClient, AIMessage } from "./client.js";
+import { configManager } from '../config/manager.js';
+import { aiClient, AIMessage } from './client.js';
 
 /**
  * AI-Powered Conversation Summarizer
- * 
+ *
  * Uses AI to generate intelligent summaries of conversations
  * Extracts key points, topics, user goals, and action items
  */
@@ -20,7 +20,7 @@ export interface ConversationSummary {
 }
 
 interface Message {
-  role: "user" | "assistant";
+  role: 'user' | 'assistant';
   content: string;
 }
 
@@ -42,7 +42,7 @@ class ConversationSummarizer {
       // Build conversation text
       const conversationText = messages
         .map(m => `${m.role.toUpperCase()}: ${m.content.slice(0, 500)}`)
-        .join("\n\n");
+        .join('\n\n');
 
       const systemPrompt = `You are a conversation analysis expert. Analyze the conversation and provide a structured summary.
 
@@ -67,31 +67,31 @@ Respond in this JSON format:
 }`;
 
       const aiMessages: AIMessage[] = [
-        { role: "user", content: `Please analyze this conversation:\n\n${conversationText}` }
+        { role: 'user', content: `Please analyze this conversation:\n\n${conversationText}` },
       ];
 
       // Use a lightweight model for summarization if available
       const response = await aiClient.createCompletion(aiMessages, undefined, systemPrompt);
-      
+
       // Parse JSON response
       const jsonMatch = response.content.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0]);
         return {
-          overview: parsed.overview || "",
+          overview: parsed.overview || '',
           keyPoints: parsed.keyPoints || [],
           topics: parsed.topics || [],
           userGoals: parsed.userGoals || [],
           userPreferences: parsed.userPreferences || [],
           actionItems: parsed.actionItems || [],
-          emotionalTone: parsed.emotionalTone || "neutral",
-          nextSteps: parsed.nextSteps || []
+          emotionalTone: parsed.emotionalTone || 'neutral',
+          nextSteps: parsed.nextSteps || [],
         };
       }
 
       return null;
     } catch (e) {
-      console.warn("AI summarization failed:", e);
+      console.warn('AI summarization failed:', e);
       return this.generateSimpleSummary(messages);
     }
   }
@@ -100,13 +100,13 @@ Respond in this JSON format:
    * Generate simple fallback summary
    */
   private generateSimpleSummary(messages: Message[]): ConversationSummary {
-    const userMessages = messages.filter(m => m.role === "user");
+    const userMessages = messages.filter(m => m.role === 'user');
     const topics = this.extractTopics(messages);
-    
+
     const preview = userMessages
       .slice(-3)
       .map(m => m.content.split(/[.!?]/, 1)[0].slice(0, 60))
-      .join("; ");
+      .join('; ');
 
     return {
       overview: `Discussed: ${preview}`,
@@ -115,8 +115,8 @@ Respond in this JSON format:
       userGoals: [],
       userPreferences: [],
       actionItems: [],
-      emotionalTone: "neutral",
-      nextSteps: []
+      emotionalTone: 'neutral',
+      nextSteps: [],
     };
   }
 
@@ -124,7 +124,7 @@ Respond in this JSON format:
    * Extract topics from messages
    */
   private extractTopics(messages: Message[]): string[] {
-    const allText = messages.map(m => m.content).join(" ");
+    const allText = messages.map(m => m.content).join(' ');
     const topics: string[] = [];
 
     const topicPatterns = [
@@ -135,7 +135,7 @@ Respond in this JSON format:
       /\b(health|exercise|gym|diet|sleep|meditation)\b/gi,
       /\b(travel|trip|vacation|flight|hotel|visit)\b/gi,
       /\b(family|friend|relationship|social|party)\b/gi,
-      /\b(money|finance|budget|save|invest|salary)\b/gi
+      /\b(money|finance|budget|save|invest|salary)\b/gi,
     ];
 
     for (const pattern of topicPatterns) {
@@ -159,7 +159,7 @@ Respond in this JSON format:
     try {
       const conversationText = messages
         .map(m => `${m.role.toUpperCase()}: ${m.content.slice(0, 300)}`)
-        .join("\n");
+        .join('\n');
 
       const systemPrompt = `Extract factual information about the user from this conversation.
 
@@ -177,12 +177,10 @@ Respond with JSON array:
 
 Only include high-confidence facts explicitly stated by the user.`;
 
-      const aiMessages: AIMessage[] = [
-        { role: "user", content: conversationText }
-      ];
+      const aiMessages: AIMessage[] = [{ role: 'user', content: conversationText }];
 
       const response = await aiClient.createCompletion(aiMessages, undefined, systemPrompt);
-      
+
       const jsonMatch = response.content.match(/\[[\s\S]*\]/);
       if (jsonMatch) {
         return JSON.parse(jsonMatch[0]);
@@ -190,7 +188,7 @@ Only include high-confidence facts explicitly stated by the user.`;
 
       return [];
     } catch (e) {
-      console.warn("Fact extraction failed:", e);
+      console.warn('Fact extraction failed:', e);
       return [];
     }
   }
@@ -200,7 +198,7 @@ Only include high-confidence facts explicitly stated by the user.`;
    */
   shouldSummarize(messages: Message[]): boolean {
     if (messages.length < 10) return false;
-    
+
     // Check conversation length
     const totalLength = messages.reduce((sum, m) => sum + m.content.length, 0);
     return totalLength > 2000; // Summarize if conversation is substantial
@@ -209,11 +207,8 @@ Only include high-confidence facts explicitly stated by the user.`;
   /**
    * Generate topic-based summary for quick reference
    */
-  async generateTopicSummary(
-    messages: Message[],
-    topic: string
-  ): Promise<string | null> {
-    const relevantMessages = messages.filter(m => 
+  async generateTopicSummary(messages: Message[], topic: string): Promise<string | null> {
+    const relevantMessages = messages.filter(m =>
       m.content.toLowerCase().includes(topic.toLowerCase())
     );
 
@@ -222,13 +217,11 @@ Only include high-confidence facts explicitly stated by the user.`;
     try {
       const conversationText = relevantMessages
         .map(m => `${m.role}: ${m.content.slice(0, 300)}`)
-        .join("\n");
+        .join('\n');
 
       const systemPrompt = `Summarize what was discussed about "${topic}" in 1-2 sentences.`;
 
-      const aiMessages: AIMessage[] = [
-        { role: "user", content: conversationText }
-      ];
+      const aiMessages: AIMessage[] = [{ role: 'user', content: conversationText }];
 
       const response = await aiClient.createCompletion(aiMessages, undefined, systemPrompt);
       return response.content.trim();

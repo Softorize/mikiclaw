@@ -11,7 +11,7 @@ export interface ToolApprovalRequest {
   summary: string;
   createdAt: number;
   expiresAt: number;
-  status: "pending" | "approved" | "denied";
+  status: 'pending' | 'approved' | 'denied';
 }
 
 class AccessControl {
@@ -28,12 +28,12 @@ class AccessControl {
 
   private pruneExpired(requests: ToolApprovalRequest[]): ToolApprovalRequest[] {
     const now = Date.now();
-    return requests.filter((request) => request.expiresAt > now && request.status !== "denied");
+    return requests.filter(request => request.expiresAt > now && request.status !== 'denied');
   }
 
   grantAppleScript(userId: string, chatId: number): void {
     this.appleScriptGrants.set(this.key(userId, chatId), {
-      grantedAt: Date.now()
+      grantedAt: Date.now(),
     });
   }
 
@@ -62,7 +62,8 @@ class AccessControl {
     const existing = this.pruneExpired(this.toolApprovals.get(key) || []);
 
     const duplicate = existing.find(
-      (request) => request.status === "pending" && request.toolName === toolName && request.inputHash === hash
+      request =>
+        request.status === 'pending' && request.toolName === toolName && request.inputHash === hash
     );
     if (duplicate) {
       this.toolApprovals.set(key, existing);
@@ -78,7 +79,7 @@ class AccessControl {
       summary,
       createdAt: Date.now(),
       expiresAt: Date.now() + 15 * 60 * 1000,
-      status: "pending"
+      status: 'pending',
     };
 
     existing.push(request);
@@ -90,22 +91,22 @@ class AccessControl {
     const key = this.key(userId, chatId);
     const active = this.pruneExpired(this.toolApprovals.get(key) || []);
     this.toolApprovals.set(key, active);
-    return active.filter((request) => request.status === "pending");
+    return active.filter(request => request.status === 'pending');
   }
 
   approveToolApproval(userId: string, chatId: number, id?: string): ToolApprovalRequest | null {
     const key = this.key(userId, chatId);
     const active = this.pruneExpired(this.toolApprovals.get(key) || []);
     const target = id
-      ? active.find((request) => request.id === id && request.status === "pending")
-      : [...active].reverse().find((request) => request.status === "pending");
+      ? active.find(request => request.id === id && request.status === 'pending')
+      : [...active].reverse().find(request => request.status === 'pending');
 
     if (!target) {
       this.toolApprovals.set(key, active);
       return null;
     }
 
-    target.status = "approved";
+    target.status = 'approved';
     this.toolApprovals.set(key, active);
     return target;
   }
@@ -114,15 +115,15 @@ class AccessControl {
     const key = this.key(userId, chatId);
     const active = this.pruneExpired(this.toolApprovals.get(key) || []);
     const target = id
-      ? active.find((request) => request.id === id && request.status === "pending")
-      : [...active].reverse().find((request) => request.status === "pending");
+      ? active.find(request => request.id === id && request.status === 'pending')
+      : [...active].reverse().find(request => request.status === 'pending');
 
     if (!target) {
       this.toolApprovals.set(key, active);
       return null;
     }
 
-    target.status = "denied";
+    target.status = 'denied';
     this.toolApprovals.set(key, active);
     return target;
   }
@@ -137,7 +138,8 @@ class AccessControl {
     const active = this.pruneExpired(this.toolApprovals.get(key) || []);
     const hash = this.inputHash(input);
     const index = active.findIndex(
-      (request) => request.status === "approved" && request.toolName === toolName && request.inputHash === hash
+      request =>
+        request.status === 'approved' && request.toolName === toolName && request.inputHash === hash
     );
 
     if (index === -1) {

@@ -1,19 +1,19 @@
-import { configManager } from "../config/manager.js";
-import { logger } from "../utils/logger.js";
-import { memorySystem } from "../personality/memory.js";
+import { configManager } from '../config/manager.js';
+import { logger } from '../utils/logger.js';
+import { memorySystem } from '../personality/memory.js';
 
-type TriggerType = "webhook" | "heartbeat";
+type TriggerType = 'webhook' | 'heartbeat';
 
 interface WorkflowExecutionHelpers {
   emitEvent?: (eventType: string, data: Record<string, unknown>) => Promise<void>;
 }
 
 function getByPath(payload: Record<string, unknown>, path: string): unknown {
-  const parts = path.split(".").filter(Boolean);
+  const parts = path.split('.').filter(Boolean);
   let current: unknown = payload;
 
   for (const part of parts) {
-    if (!current || typeof current !== "object" || Array.isArray(current)) {
+    if (!current || typeof current !== 'object' || Array.isArray(current)) {
       return undefined;
     }
     current = (current as Record<string, unknown>)[part];
@@ -26,7 +26,7 @@ function renderTemplate(template: string, payload: Record<string, unknown>): str
   return template.replace(/\{\{\s*([a-zA-Z0-9_.-]+)\s*\}\}/g, (_, path) => {
     const value = getByPath(payload, path);
     if (value === undefined || value === null) {
-      return "";
+      return '';
     }
     return String(value);
   });
@@ -79,15 +79,15 @@ class WorkflowEngine {
         continue;
       }
 
-      if (triggerType === "webhook" && workflow.trigger.path) {
-        const path = String(payload.path || "");
+      if (triggerType === 'webhook' && workflow.trigger.path) {
+        const path = String(payload.path || '');
         if (path !== workflow.trigger.path) {
           continue;
         }
       }
 
-      if (triggerType === "heartbeat" && workflow.trigger.taskName) {
-        const taskName = String(payload.taskName || "");
+      if (triggerType === 'heartbeat' && workflow.trigger.taskName) {
+        const taskName = String(payload.taskName || '');
         if (taskName !== workflow.trigger.taskName) {
           continue;
         }
@@ -103,10 +103,10 @@ class WorkflowEngine {
         await this.executeAction(workflow.action, payload, helpers);
         executed += 1;
       } catch (error) {
-        logger.error("Workflow action failed", {
+        logger.error('Workflow action failed', {
           workflowId: workflow.id,
           triggerType,
-          error: String(error)
+          error: String(error),
         });
       }
     }
@@ -116,7 +116,7 @@ class WorkflowEngine {
 
   private async executeAction(
     action: {
-      type: "emit_webhook_event" | "log" | "memory";
+      type: 'emit_webhook_event' | 'log' | 'memory';
       eventType?: string;
       message?: string;
       importance?: number;
@@ -124,39 +124,39 @@ class WorkflowEngine {
     payload: Record<string, unknown>,
     helpers: WorkflowExecutionHelpers
   ): Promise<void> {
-    if (action.type === "log") {
-      logger.info("Workflow log action", {
-        message: action.message ? renderTemplate(action.message, payload) : "workflow-log",
-        payload
+    if (action.type === 'log') {
+      logger.info('Workflow log action', {
+        message: action.message ? renderTemplate(action.message, payload) : 'workflow-log',
+        payload,
       });
       return;
     }
 
-    if (action.type === "memory") {
+    if (action.type === 'memory') {
       const memoryMessage = action.message
         ? renderTemplate(action.message, payload)
         : `Workflow memory event: ${JSON.stringify(payload).slice(0, 500)}`;
 
       memorySystem.addEntry({
-        type: "event",
+        type: 'event',
         content: memoryMessage,
         importance: Math.max(1, Math.min(10, action.importance || 5)),
-        tags: ["workflow", "automation"],
-        source: "workflow"
+        tags: ['workflow', 'automation'],
+        source: 'workflow',
       });
       return;
     }
 
-    if (action.type === "emit_webhook_event") {
+    if (action.type === 'emit_webhook_event') {
       if (!helpers.emitEvent) {
-        logger.warn("Workflow emit_webhook_event action skipped: no emitter configured");
+        logger.warn('Workflow emit_webhook_event action skipped: no emitter configured');
         return;
       }
 
-      const eventType = action.eventType || "automation.workflow";
+      const eventType = action.eventType || 'automation.workflow';
       await helpers.emitEvent(eventType, {
         ...payload,
-        workflowMessage: action.message ? renderTemplate(action.message, payload) : undefined
+        workflowMessage: action.message ? renderTemplate(action.message, payload) : undefined,
       });
     }
   }

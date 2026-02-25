@@ -1,12 +1,12 @@
-import { Context } from "telegraf";
-import { ChannelAdapter, ChannelMessageContext } from "./types.js";
+import { Context } from 'telegraf';
+import { ChannelAdapter, ChannelMessageContext } from './types.js';
 
 class TelegramAdapter implements ChannelAdapter<Context> {
-  readonly name = "telegram";
+  readonly name = 'telegram';
 
   toMessageContext(ctx: Context): ChannelMessageContext | null {
     const chatId = ctx.chat?.id;
-    const userId = ctx.from?.id ? String(ctx.from.id) : "";
+    const userId = ctx.from?.id ? String(ctx.from.id) : '';
     if (!chatId || !userId) {
       return null;
     }
@@ -15,7 +15,7 @@ class TelegramAdapter implements ChannelAdapter<Context> {
       channel: this.name,
       chatId,
       userId,
-      username: ctx.from?.username
+      username: ctx.from?.username,
     };
   }
 }

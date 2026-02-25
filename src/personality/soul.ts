@@ -1,6 +1,6 @@
-import { configManager } from "../config/manager.js";
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { configManager } from '../config/manager.js';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 const DEFAULT_SOUL = `# Identity
 - Name: Miki
@@ -32,13 +32,13 @@ const DEFAULT_SOUL = `# Identity
 
 export function loadSoul(): string {
   const workspacePath = configManager.getWorkspacePath();
-  const soulPath = join(workspacePath, "SOUL.md");
+  const soulPath = join(workspacePath, 'SOUL.md');
 
   if (existsSync(soulPath)) {
     try {
-      return readFileSync(soulPath, "utf-8");
+      return readFileSync(soulPath, 'utf-8');
     } catch (e) {
-      console.warn("Failed to load SOUL.md, using default");
+      console.warn('Failed to load SOUL.md, using default');
     }
   }
 
@@ -47,15 +47,15 @@ export function loadSoul(): string {
 
 export function loadHeartbeatConfig(): string {
   const workspacePath = configManager.getWorkspacePath();
-  const hbPath = join(workspacePath, "HEARTBEAT.md");
+  const hbPath = join(workspacePath, 'HEARTBEAT.md');
 
   if (existsSync(hbPath)) {
     try {
-      return readFileSync(hbPath, "utf-8");
+      return readFileSync(hbPath, 'utf-8');
     } catch (e) {
-      console.warn("Failed to load HEARTBEAT.md");
+      console.warn('Failed to load HEARTBEAT.md');
     }
   }
 
-  return "";
+  return '';
 }

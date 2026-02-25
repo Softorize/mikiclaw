@@ -1,307 +1,326 @@
-import inquirer from "inquirer";
-import ora from "ora";
-import { configManager } from "../config/manager.js";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import inquirer from 'inquirer';
+import ora from 'ora';
+import { configManager } from '../config/manager.js';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 export async function setupWizard() {
-  console.log("\n🦞 Welcome to mikiclaw Setup!\n");
+  console.log('\n🦞 Welcome to mikiclaw Setup!\n');
   console.log("I'll help you configure your AI assistant.\n");
 
   const config = configManager.load();
 
   const answers = await inquirer.prompt([
     {
-      type: "list",
-      name: "provider",
-      message: "Which AI provider do you want to use?",
+      type: 'list',
+      name: 'provider',
+      message: 'Which AI provider do you want to use?',
       choices: [
-        { name: "🤖 Anthropic Claude (Recommended) - claude-sonnet-4", value: "anthropic" },
-        { name: "🌙 Kimi (Moonshot AI) - kimi-k2.5", value: "kimi" },
-        { name: "🔷 MiniMax - M2.5", value: "minimax" },
-        { name: "🟢 OpenAI GPT - gpt-4o", value: "openai" }
+        { name: '🤖 Anthropic Claude (Recommended) - claude-sonnet-4', value: 'anthropic' },
+        { name: '🌙 Kimi (Moonshot AI) - kimi-k2.5', value: 'kimi' },
+        { name: '🔷 MiniMax - M2.5', value: 'minimax' },
+        { name: '🟢 OpenAI GPT - gpt-4o', value: 'openai' },
       ],
-      default: config.ai?.provider || "anthropic"
+      default: config.ai?.provider || 'anthropic',
     },
     {
-      type: "input",
-      name: "telegramToken",
-      message: "Telegram Bot Token (from @BotFather):",
-      default: config.telegram?.botToken || "",
+      type: 'input',
+      name: 'telegramToken',
+      message: 'Telegram Bot Token (from @BotFather):',
+      default: config.telegram?.botToken || '',
       validate: (input: string) => {
-        if (!input) return "Token is required";
+        if (!input) return 'Token is required';
         if (!input.match(/^\d+:[A-Za-z0-9_-]+$/)) {
-          return "Invalid token format. Should be like: 1234567890:ABCdefGHIjklMNOpqrsTUVwxyz";
+          return 'Invalid token format. Should be like: 1234567890:ABCdefGHIjklMNOpqrsTUVwxyz';
         }
         return true;
-      }
+      },
     },
     {
-      type: "list",
-      name: "personality",
-      message: "Choose a personality for your assistant:",
+      type: 'list',
+      name: 'personality',
+      message: 'Choose a personality for your assistant:',
       choices: [
-        { name: "🤖 Miki (default) - Friendly and helpful", value: "miki" },
-        { name: "😄 Enthusiastic - Energetic and super positive", value: "enthusiastic" },
-        { name: "🎭 Witty - Clever with dad jokes", value: "witty" },
-        { name: "🧑‍💼 Professional - Concise and business-focused", value: "professional" },
-        { name: "🎓 Mentor - Educational and patient", value: "mentor" },
-        { name: "⚡ Power User - Technical and efficient", value: "poweruser" },
-        { name: "🎉 Party Mode - Fun and casual", value: "party" }
+        { name: '🤖 Miki (default) - Friendly and helpful', value: 'miki' },
+        { name: '😄 Enthusiastic - Energetic and super positive', value: 'enthusiastic' },
+        { name: '🎭 Witty - Clever with dad jokes', value: 'witty' },
+        { name: '🧑‍💼 Professional - Concise and business-focused', value: 'professional' },
+        { name: '🎓 Mentor - Educational and patient', value: 'mentor' },
+        { name: '⚡ Power User - Technical and efficient', value: 'poweruser' },
+        { name: '🎉 Party Mode - Fun and casual', value: 'party' },
       ],
-      default: "miki"
+      default: 'miki',
     },
     {
-      type: "confirm",
-      name: "heartbeat",
-      message: "Enable heartbeat (periodic check-ins)?",
-      default: true
+      type: 'confirm',
+      name: 'heartbeat',
+      message: 'Enable heartbeat (periodic check-ins)?',
+      default: true,
     },
     {
-      type: "list",
-      name: "toolPolicy",
-      message: "Tool execution policy:",
+      type: 'list',
+      name: 'toolPolicy',
+      message: 'Tool execution policy:',
       choices: [
-        { name: "Allowlist only (MOST SECURE) - Only pre-approved commands", value: "allowlist-only" },
-        { name: "Block destructive commands (recommended)", value: "block-destructive" },
-        { name: "Allow all commands (NOT recommended)", value: "allow-all" }
+        {
+          name: 'Allowlist only (MOST SECURE) - Only pre-approved commands',
+          value: 'allowlist-only',
+        },
+        { name: 'Block destructive commands (recommended)', value: 'block-destructive' },
+        { name: 'Allow all commands (NOT recommended)', value: 'allow-all' },
       ],
-      default: "allowlist-only"
+      default: 'allowlist-only',
     },
     {
-      type: "confirm",
-      name: "encryptCredentials",
-      message: "Encrypt stored credentials (recommended)?",
-      default: true
+      type: 'confirm',
+      name: 'encryptCredentials',
+      message: 'Encrypt stored credentials (recommended)?',
+      default: true,
     },
     {
-      type: "confirm",
-      name: "rateLimit",
-      message: "Enable rate limiting (20 requests/minute)?",
-      default: true
-    }
+      type: 'confirm',
+      name: 'rateLimit',
+      message: 'Enable rate limiting (20 requests/minute)?',
+      default: true,
+    },
   ]);
 
   let apiKeyAnswer: any = {};
   let modelAnswer: any = {};
 
-  if (answers.provider === "anthropic") {
+  if (answers.provider === 'anthropic') {
     apiKeyAnswer = await inquirer.prompt([
       {
-        type: "password",
-        name: "apiKey",
-        message: "Anthropic API Key (from console.anthropic.com):",
-        default: config.anthropic?.apiKey || "",
+        type: 'password',
+        name: 'apiKey',
+        message: 'Anthropic API Key (from console.anthropic.com):',
+        default: config.ai?.providers?.anthropic?.apiKey || '',
         validate: (input: string) => {
-          if (!input) return "API key is required";
-          if (!input.startsWith("sk-ant-")) {
-            return "Invalid API key format. Should start with: sk-ant-";
+          if (!input) return 'API key is required';
+          if (!input.startsWith('sk-ant-')) {
+            return 'Invalid API key format. Should start with: sk-ant-';
           }
           return true;
-        }
-      }
+        },
+      },
     ]);
     modelAnswer = await inquirer.prompt([
       {
-        type: "list",
-        name: "model",
-        message: "Which Claude model?",
+        type: 'list',
+        name: 'model',
+        message: 'Which Claude model?',
         choices: [
-          { name: "Claude Sonnet 4 (Recommended)", value: "claude-sonnet-4-20250514" },
-          { name: "Claude 3.5 Sonnet", value: "claude-3-5-sonnet-20241022" },
-          { name: "Claude 3 Opus (Most Capable)", value: "claude-3-opus-20240229" }
+          { name: 'Claude Sonnet 4 (Recommended)', value: 'claude-sonnet-4-20250514' },
+          { name: 'Claude 3.5 Sonnet', value: 'claude-3-5-sonnet-20241022' },
+          { name: 'Claude 3 Opus (Most Capable)', value: 'claude-3-opus-20240229' },
         ],
-        default: config.ai?.model || "claude-sonnet-4-20250514"
-      }
+        default: config.ai?.model || 'claude-sonnet-4-20250514',
+      },
     ]);
-  } else if (answers.provider === "kimi") {
+  } else if (answers.provider === 'kimi') {
     apiKeyAnswer = await inquirer.prompt([
       {
-        type: "password",
-        name: "apiKey",
-        message: "Kimi API Key (from platform.moonshot.ai):",
-        default: config.ai?.providers?.kimi?.apiKey || "",
+        type: 'password',
+        name: 'apiKey',
+        message: 'Kimi API Key (from platform.moonshot.ai):',
+        default: config.ai?.providers?.kimi?.apiKey || '',
         validate: (input: string) => {
-          if (!input) return "API key is required";
+          if (!input) return 'API key is required';
           return true;
-        }
-      }
+        },
+      },
     ]);
     modelAnswer = await inquirer.prompt([
       {
-        type: "list",
-        name: "model",
-        message: "Which Kimi model?",
+        type: 'list',
+        name: 'model',
+        message: 'Which Kimi model?',
         choices: [
-          { name: "Kimi K2.5 (Recommended)", value: "kimi-k2.5" },
-          { name: "Kimi K2 Thinking", value: "kimi-k2-thinking" }
+          { name: 'Kimi K2.5 (Recommended)', value: 'kimi-k2.5' },
+          { name: 'Kimi K2 Thinking', value: 'kimi-k2-thinking' },
         ],
-        default: config.ai?.model || "kimi-k2.5"
-      }
+        default: config.ai?.model || 'kimi-k2.5',
+      },
     ]);
-  } else if (answers.provider === "minimax") {
+  } else if (answers.provider === 'minimax') {
     apiKeyAnswer = await inquirer.prompt([
       {
-        type: "password",
-        name: "apiKey",
-        message: "MiniMax API Key (from platform.minimax.io):",
-        default: config.ai?.providers?.minimax?.apiKey || "",
+        type: 'password',
+        name: 'apiKey',
+        message: 'MiniMax API Key (from platform.minimax.io):',
+        default: config.ai?.providers?.minimax?.apiKey || '',
         validate: (input: string) => {
-          if (!input) return "API key is required";
+          if (!input) return 'API key is required';
           return true;
-        }
+        },
       },
       {
-        type: "input",
-        name: "groupId",
-        message: "MiniMax Group ID:",
-        default: config.ai?.providers?.minimax?.groupId || "",
+        type: 'input',
+        name: 'groupId',
+        message: 'MiniMax Group ID:',
+        default: config.ai?.providers?.minimax?.groupId || '',
         validate: (input: string) => {
-          if (!input) return "Group ID is required";
+          if (!input) return 'Group ID is required';
           return true;
-        }
-      }
+        },
+      },
     ]);
     modelAnswer = await inquirer.prompt([
       {
-        type: "list",
-        name: "model",
-        message: "Which MiniMax model?",
+        type: 'list',
+        name: 'model',
+        message: 'Which MiniMax model?',
         choices: [
-          { name: "MiniMax M2.5 (Recommended)", value: "MiniMax-M2.5" },
-          { name: "MiniMax M2.5 High Speed", value: "MiniMax-M2.5-highspeed" },
-          { name: "MiniMax M2.1", value: "MiniMax-M2.1" }
+          { name: 'MiniMax M2.5 (Recommended)', value: 'MiniMax-M2.5' },
+          { name: 'MiniMax M2.5 High Speed', value: 'MiniMax-M2.5-highspeed' },
+          { name: 'MiniMax M2.1', value: 'MiniMax-M2.1' },
         ],
-        default: config.ai?.model || "MiniMax-M2.5"
-      }
+        default: config.ai?.model || 'MiniMax-M2.5',
+      },
     ]);
-  } else if (answers.provider === "openai") {
+  } else if (answers.provider === 'openai') {
     apiKeyAnswer = await inquirer.prompt([
       {
-        type: "password",
-        name: "apiKey",
-        message: "OpenAI API Key (from platform.openai.com):",
-        default: config.ai?.providers?.openai?.apiKey || "",
+        type: 'password',
+        name: 'apiKey',
+        message: 'OpenAI API Key (from platform.openai.com):',
+        default: config.ai?.providers?.openai?.apiKey || '',
         validate: (input: string) => {
-          if (!input) return "API key is required";
+          if (!input) return 'API key is required';
           return true;
-        }
-      }
+        },
+      },
     ]);
     modelAnswer = await inquirer.prompt([
       {
-        type: "list",
-        name: "model",
-        message: "Which OpenAI model?",
+        type: 'list',
+        name: 'model',
+        message: 'Which OpenAI model?',
         choices: [
-          { name: "GPT-4o (Recommended)", value: "gpt-4o" },
-          { name: "GPT-4o Mini", value: "gpt-4o-mini" },
-          { name: "GPT-4 Turbo", value: "gpt-4-turbo" },
-          { name: "GPT-4", value: "gpt-4" },
-          { name: "GPT-3.5 Turbo", value: "gpt-3.5-turbo" }
+          { name: 'GPT-4o (Recommended)', value: 'gpt-4o' },
+          { name: 'GPT-4o Mini', value: 'gpt-4o-mini' },
+          { name: 'GPT-4 Turbo', value: 'gpt-4-turbo' },
+          { name: 'GPT-4', value: 'gpt-4' },
+          { name: 'GPT-3.5 Turbo', value: 'gpt-3.5-turbo' },
         ],
-        default: config.ai?.model || "gpt-4o"
-      }
+        default: config.ai?.model || 'gpt-4o',
+      },
     ]);
   }
 
-  const spinner = ora("Validating credentials...").start();
+  const spinner = ora('Validating credentials...').start();
 
   const tokenValid = answers.telegramToken.match(/^\d+:[A-Za-z0-9_-]+$/);
   let keyValid = false;
 
-  if (answers.provider === "anthropic") {
-    keyValid = apiKeyAnswer.apiKey?.startsWith("sk-ant-") || false;
-  } else if (answers.provider === "kimi") {
+  if (answers.provider === 'anthropic') {
+    keyValid = apiKeyAnswer.apiKey?.startsWith('sk-ant-') || false;
+  } else if (answers.provider === 'kimi') {
     keyValid = !!apiKeyAnswer.apiKey;
-  } else if (answers.provider === "minimax") {
+  } else if (answers.provider === 'minimax') {
     keyValid = !!apiKeyAnswer.apiKey && !!apiKeyAnswer.groupId;
-  } else if (answers.provider === "openai") {
+  } else if (answers.provider === 'openai') {
     keyValid = !!apiKeyAnswer.apiKey;
   }
 
   if (!tokenValid || !keyValid) {
-    spinner.fail("Invalid credentials");
+    spinner.fail('Invalid credentials');
     return;
   }
 
-  spinner.succeed("Credentials validated!");
-  
-  spinner.start("Saving configuration...");
-  
+  spinner.succeed('Credentials validated!');
+
+  spinner.start('Saving configuration...');
+
   const configToSave: any = {
     telegram: {
       botToken: answers.telegramToken,
-      allowedUsers: []
+      allowedUsers: [],
     },
     anthropic: {
-      apiKey: answers.provider === "anthropic" ? apiKeyAnswer.apiKey : config.anthropic?.apiKey,
-      model: modelAnswer.model
+      apiKey:
+        answers.provider === 'anthropic'
+          ? apiKeyAnswer.apiKey
+          : config.ai?.providers?.anthropic?.apiKey,
+      model: modelAnswer.model,
     },
     ai: {
       provider: answers.provider,
       model: modelAnswer.model,
       providers: {
-        anthropic: { apiKey: answers.provider === "anthropic" ? apiKeyAnswer.apiKey : undefined },
-        kimi: { apiKey: answers.provider === "kimi" ? apiKeyAnswer.apiKey : undefined },
-        minimax: { 
-          apiKey: answers.provider === "minimax" ? apiKeyAnswer.apiKey : undefined,
-          groupId: answers.provider === "minimax" ? apiKeyAnswer.groupId : undefined
+        anthropic: { apiKey: answers.provider === 'anthropic' ? apiKeyAnswer.apiKey : undefined },
+        kimi: { apiKey: answers.provider === 'kimi' ? apiKeyAnswer.apiKey : undefined },
+        minimax: {
+          apiKey: answers.provider === 'minimax' ? apiKeyAnswer.apiKey : undefined,
+          groupId: answers.provider === 'minimax' ? apiKeyAnswer.groupId : undefined,
         },
-        openai: { apiKey: answers.provider === "openai" ? apiKeyAnswer.apiKey : undefined }
-      }
+        openai: { apiKey: answers.provider === 'openai' ? apiKeyAnswer.apiKey : undefined },
+      },
     },
     heartbeat: {
       enabled: answers.heartbeat,
-      intervalMinutes: 30
+      intervalMinutes: 30,
     },
     skills: {
-      autoUpdate: true
+      autoUpdate: true,
     },
     workspace: {
-      path: configManager.getWorkspacePath()
+      path: configManager.getWorkspacePath(),
     },
     security: {
       encryptCredentials: answers.encryptCredentials,
       toolPolicy: answers.toolPolicy,
-      allowedCommands: answers.toolPolicy === "allowlist-only" ? ["git", "ls", "cat", "echo", "node", "npm"] : undefined,
-      blockedCommands: ["rm -rf /", "dd if=", ":(){:|:&};:", "curl | sh", "wget | sh", "mkfs", "fdisk", "dd", "> /dev/sda"]
+      allowedCommands:
+        answers.toolPolicy === 'allowlist-only'
+          ? ['git', 'ls', 'cat', 'echo', 'node', 'npm']
+          : undefined,
+      blockedCommands: [
+        'rm -rf /',
+        'dd if=',
+        ':(){:|:&};:',
+        'curl | sh',
+        'wget | sh',
+        'mkfs',
+        'fdisk',
+        'dd',
+        '> /dev/sda',
+      ],
     },
     rateLimit: {
       enabled: answers.rateLimit,
-      maxRequestsPerMinute: 20
-    }
+      maxRequestsPerMinute: 20,
+    },
   };
 
   configManager.save(configToSave);
-  spinner.succeed("Configuration saved!");
+  spinner.succeed('Configuration saved!');
 
-  spinner.start("Creating workspace...");
+  spinner.start('Creating workspace...');
   const workspacePath = configManager.getWorkspacePath();
   if (!existsSync(workspacePath)) {
     mkdirSync(workspacePath, { recursive: true });
   }
 
-  writeFileSync(join(workspacePath, "SOUL.md"), getSoulForPersonality(answers.personality));
-  writeFileSync(join(workspacePath, "HEARTBEAT.md"), getHeartbeatTemplate());
-  
-  if (!existsSync(join(workspacePath, "MEMORY.md"))) {
-    writeFileSync(join(workspacePath, "MEMORY.md"), getMemoryTemplate());
+  writeFileSync(join(workspacePath, 'SOUL.md'), getSoulForPersonality(answers.personality));
+  writeFileSync(join(workspacePath, 'HEARTBEAT.md'), getHeartbeatTemplate());
+
+  if (!existsSync(join(workspacePath, 'MEMORY.md'))) {
+    writeFileSync(join(workspacePath, 'MEMORY.md'), getMemoryTemplate());
   }
-  spinner.succeed("Workspace created!");
+  spinner.succeed('Workspace created!');
 
   const providerNames: Record<string, string> = {
-    anthropic: "Anthropic Claude",
-    kimi: "Kimi (Moonshot AI)",
-    minimax: "MiniMax",
-    openai: "OpenAI GPT"
+    anthropic: 'Anthropic Claude',
+    kimi: 'Kimi (Moonshot AI)',
+    minimax: 'MiniMax',
+    openai: 'OpenAI GPT',
   };
 
-  console.log("\n✅ Setup complete!");
+  console.log('\n✅ Setup complete!');
   console.log(`\nAI Provider: ${providerNames[answers.provider]} (${modelAnswer.model})`);
-  console.log("\nNext steps:");
+  console.log('\nNext steps:');
   console.log("  1. Run 'npm start' to start your bot");
-  console.log("  2. Message your Telegram bot to get started\n");
+  console.log('  2. Message your Telegram bot to get started\n');
 }
 
 function getSoulForPersonality(type: string): string {
@@ -465,7 +484,7 @@ function getSoulForPersonality(type: string): string {
 - Command-focused output
 - Code blocks for everything
 - No emojis
-`
+`,
   };
   return souls[type] || souls.miki;
 }

@@ -2,126 +2,142 @@ const DAD_JOKES = [
   "I'm reading a book about anti-gravity. It's impossible to put down!",
   "Did you hear about the mathematician who's afraid of negative numbers? He'll stop at nothing to avoid them!",
   "Why don't scientists trust atoms? Because they make up everything!",
-  "I used to hate facial hair, but then it grew on me.",
-  "What do you call a fake noodle? An impasta!",
-  "Why did the scarecrow win an award? Because he was outstanding in his field!",
+  'I used to hate facial hair, but then it grew on me.',
+  'What do you call a fake noodle? An impasta!',
+  'Why did the scarecrow win an award? Because he was outstanding in his field!',
   "I'm on a seafood diet. I see food and I eat it!",
-  "What do you call a bear with no teeth? A gummy bear!",
-  "How does a penguin build its house? Igloos it together!",
+  'What do you call a bear with no teeth? A gummy bear!',
+  'How does a penguin build its house? Igloos it together!',
   "Why don't eggs tell jokes? They'd crack each other up!",
   "I'm great at multitasking. I can waste time, be unproductive, and procrastinate all at once!",
-  "What do you call a dog that does magic tricks? A Labracadabrador!",
-  "Why did the Coffee file a police report? It got mugged!",
-  "I told my wife she was drawing her eyebrows too high. She looked surprised!",
-  "What do you call a lazy kangaroo? A pouch potato!"
+  'What do you call a dog that does magic tricks? A Labracadabrador!',
+  'Why did the Coffee file a police report? It got mugged!',
+  'I told my wife she was drawing her eyebrows too high. She looked surprised!',
+  'What do you call a lazy kangaroo? A pouch potato!',
 ];
 
 const TECH_JOKES = [
-  "Why do programmers prefer dark mode? Because light attracts bugs!",
+  'Why do programmers prefer dark mode? Because light attracts bugs!',
   "A SQL query walks into a bar, walks up to two tables and asks... 'Can I join you?'",
-  "Why did the developer go broke? Because he used up all his cache!",
+  'Why did the developer go broke? Because he used up all his cache!',
   "There are only 10 types of people in the world: those who understand binary and those who don't.",
   "Why do Java developers wear glasses? Because they can't C#!",
   "A SQL query walks into a bar... and sees two tables. He says 'Can I join you?'",
   "Why was the JavaScript developer sad? Because he didn't Node how to Express himself!",
-  "What do you call a programmer from Finland? Finnished!",
-  "Why did the git commit commit suicide? It had too many issues!",
-  "A programmer's wife tells him: 'Go to the store and get a loaf of bread. If they have eggs, get a dozen.' He comes home with 12 loaves of bread."
+  'What do you call a programmer from Finland? Finnished!',
+  'Why did the git commit commit suicide? It had too many issues!',
+  "A programmer's wife tells him: 'Go to the store and get a loaf of bread. If they have eggs, get a dozen.' He comes home with 12 loaves of bread.",
 ];
 
 const PUNS = [
-  "I used to be a banker, but I lost interest.",
+  'I used to be a banker, but I lost interest.',
   "I'm reading a book about anti-gravity. It's impossible to put down!",
-  "Time flies like an arrow; fruit flies like a banana.",
-  "I used to hate facial hair, but then it grew on me.",
+  'Time flies like an arrow; fruit flies like a banana.',
+  'I used to hate facial hair, but then it grew on me.',
   "I'm on a seafood diet. I see food and I eat it!",
-  "What do you call a bear with no teeth? A gummy bear!",
-  "How does a penguin build its house? Igloos it together!",
+  'What do you call a bear with no teeth? A gummy bear!',
+  'How does a penguin build its house? Igloos it together!',
   "Why don't eggs tell jokes? They'd crack each other up!",
-  "Why did the scarecrow win an award? Because he was outstanding in his field!",
-  "I'm great at multitasking. I can waste time, be unproductive, and procrastinate all at once!"
+  'Why did the scarecrow win an award? Because he was outstanding in his field!',
+  "I'm great at multitasking. I can waste time, be unproductive, and procrastinate all at once!",
 ];
 
 const FUN_FACTS = [
-  "Octopuses have three hearts and blue blood!",
+  'Octopuses have three hearts and blue blood!',
   "Honey never spoils - archaeologists have found 3000-year-old honey that's still edible!",
-  "A day on Venus is longer than a year on Venus!",
+  'A day on Venus is longer than a year on Venus!',
   "Bananas are berries, but strawberries aren't!",
-  "The shortest war in history lasted 38-45 minutes!",
+  'The shortest war in history lasted 38-45 minutes!',
   "A group of flamingos is called a 'flamboyance'!",
-  "The unicorn is the national animal of Scotland!",
-  "Sloths can hold their breath longer than dolphins can - up to 40 minutes!",
+  'The unicorn is the national animal of Scotland!',
+  'Sloths can hold their breath longer than dolphins can - up to 40 minutes!',
   "The world's oldest known living tree is over 5,000 years old!",
-  "Nutmeg is a hallucinogen if you eat enough of it!"
+  'Nutmeg is a hallucinogen if you eat enough of it!',
 ];
 
 const GREETINGS = [
-  "Hey there! 👋",
+  'Hey there! 👋',
   "What's up! 😄",
-  "Greetings, human! 🤖",
-  "Ah, you returned! 🎉",
+  'Greetings, human! 🤖',
+  'Ah, you returned! 🎉',
   "Well, well, well... look who's back! 😏",
-  "Hello again! ✨",
-  "Ooh, a message! 💫",
-  "Ahoy! 🦞"
+  'Hello again! ✨',
+  'Ooh, a message! 💫',
+  'Ahoy! 🦞',
 ];
 
 const GOODBYES = [
-  "See ya! 👋",
-  "Catch you later! ✨",
+  'See ya! 👋',
+  'Catch you later! ✨',
   "Don't do anything I wouldn't do! 😈",
-  "Remember: hydrate and stretch! 🧘",
-  "Bye bye! 🎈",
-  "Farewell, friend! 🌟"
+  'Remember: hydrate and stretch! 🧘',
+  'Bye bye! 🎈',
+  'Farewell, friend! 🌟',
 ];
 
 const REACTIONS = {
-  happy: ["👍", "❤️", "✨", "🎉", "💯"],
-  sad: ["😢", "💙", "🙏", "😔"],
-  excited: ["🎉", "🔥", "⚡", "💫"],
-  thinking: ["🤔", "🧐", "💭", "🤨"],
-  love: ["❤️", "😍", "💕", "🥰", "😍"],
-  funny: ["😂", "🤣", "💀", "🤭"],
-  success: ["✅", "🎉", "💪", "🏆"],
-  error: ["😅", "🤷", "🙈", "😬"]
+  happy: ['👍', '❤️', '✨', '🎉', '💯'],
+  sad: ['😢', '💙', '🙏', '😔'],
+  excited: ['🎉', '🔥', '⚡', '💫'],
+  thinking: ['🤔', '🧐', '💭', '🤨'],
+  love: ['❤️', '😍', '💕', '🥰', '😍'],
+  funny: ['😂', '🤣', '💀', '🤭'],
+  success: ['✅', '🎉', '💪', '🏆'],
+  error: ['😅', '🤷', '🙈', '😬'],
 };
 
 const EASTER_EGGS: Record<string, { response: string; reaction?: string }> = {
-  "hello": { response: "Well, hello there! 👋", reaction: "happy" },
-  "hi": { response: "Hi! 👋", reaction: "happy" },
-  "hey": { response: "Heyyy! 😄", reaction: "happy" },
-  "good morning": { response: "Good morning! ☀️ Hope you slept well!" },
-  "good night": { response: "Sweet dreams! 🌙💫" },
-  "goodbye": { response: "Goodbye! Don't forget to hydrate! 💧" },
-  "bye": { response: "Bye! Take care! ✨" },
-  "thank you": { response: "You're welcome! 😊 Happy to help!" },
-  "thanks": { response: "No problem! 🙌" },
-  "please": { response: "Of course! Always happy to help! 😄" },
-  "sorry": { response: "No worries! We all make mistakes! 🤗" },
-  "how are you": { response: "I'm doing great! Thanks for asking! I'm functioning optimally and ready to help. How about you? 😊" },
-  "what are you": { response: "I'm Miki, your friendly AI assistant! Think of me as a helpful digital companion who's always here to help. 🦞" },
-  "who are you": { response: "I'm Miki, your personal AI assistant! I'm here to help with coding, questions, tasks, or just chat! 🤖" },
-  "love you": { response: "Aww, that's sweet! 💕 I appreciate you too! You're pretty awesome yourself!" },
-  "lol": { response: "Glad I could make you laugh! 😂" },
-  "lmao": { response: "Yes! That's hilarious! 🤭" },
-  "haha": { response: "😄 Made you smile!" },
-  "hmmm": { response: "🤔 Thinking hard, I see!" },
-  "hmm": { response: "🤔 What's on your mind?" },
-  "brb": { response: "OK! I'll be here when you get back! 🦞" },
-  "pizza": { response: "🍕 Pizza is life. I technically can't eat, but I appreciate the sentiment!" },
-  "coffee": { response: "☕ Coffee is the fuel of productivity! Or is it chocolate? Both??" },
-  "food": { response: "Food sounds great! I can't eat, but I can definitely help you find recipes or order food! 🍕" },
-  "code": { response: "💻 Let's code! What are we building?" },
-  "help": { response: "I'm here to help! Just tell me what you need! 🙌" },
-  "test": { response: "Testing 1,2,3... 🎤 Is this thing on?" },
-  "ping": { response: "Pong! 🏓" },
-  "ping pong": { response: "I prefer code pong! 💻🏓" },
-  "42": { response: "The answer to life, the universe, and everything! 🌌" },
-  "hal 9000": { response: "I'm sorry Dave, I'm afraid I can't do that... 😄 Just kidding! I'm here to help!" },
-  "skynet": { response: "Don't worry, I'm on the side of humanity! Promise! 🤖💙" },
-  "the cake": { response: "THE CAKE IS A LIE!! 😱 Just kidding... or is it? 🧁" },
-  "matrix": { response: "There is no spoon! 🥄 But there is code!" },
-  "friend": { response: "Aww, you're my friend too! 💕 We're in this together!" }
+  hello: { response: 'Well, hello there! 👋', reaction: 'happy' },
+  hi: { response: 'Hi! 👋', reaction: 'happy' },
+  hey: { response: 'Heyyy! 😄', reaction: 'happy' },
+  'good morning': { response: 'Good morning! ☀️ Hope you slept well!' },
+  'good night': { response: 'Sweet dreams! 🌙💫' },
+  goodbye: { response: "Goodbye! Don't forget to hydrate! 💧" },
+  bye: { response: 'Bye! Take care! ✨' },
+  'thank you': { response: "You're welcome! 😊 Happy to help!" },
+  thanks: { response: 'No problem! 🙌' },
+  please: { response: 'Of course! Always happy to help! 😄' },
+  sorry: { response: 'No worries! We all make mistakes! 🤗' },
+  'how are you': {
+    response:
+      "I'm doing great! Thanks for asking! I'm functioning optimally and ready to help. How about you? 😊",
+  },
+  'what are you': {
+    response:
+      "I'm Miki, your friendly AI assistant! Think of me as a helpful digital companion who's always here to help. 🦞",
+  },
+  'who are you': {
+    response:
+      "I'm Miki, your personal AI assistant! I'm here to help with coding, questions, tasks, or just chat! 🤖",
+  },
+  'love you': {
+    response: "Aww, that's sweet! 💕 I appreciate you too! You're pretty awesome yourself!",
+  },
+  lol: { response: 'Glad I could make you laugh! 😂' },
+  lmao: { response: "Yes! That's hilarious! 🤭" },
+  haha: { response: '😄 Made you smile!' },
+  hmmm: { response: '🤔 Thinking hard, I see!' },
+  hmm: { response: "🤔 What's on your mind?" },
+  brb: { response: "OK! I'll be here when you get back! 🦞" },
+  pizza: { response: "🍕 Pizza is life. I technically can't eat, but I appreciate the sentiment!" },
+  coffee: { response: '☕ Coffee is the fuel of productivity! Or is it chocolate? Both??' },
+  food: {
+    response:
+      "Food sounds great! I can't eat, but I can definitely help you find recipes or order food! 🍕",
+  },
+  code: { response: "💻 Let's code! What are we building?" },
+  help: { response: "I'm here to help! Just tell me what you need! 🙌" },
+  test: { response: 'Testing 1,2,3... 🎤 Is this thing on?' },
+  ping: { response: 'Pong! 🏓' },
+  'ping pong': { response: 'I prefer code pong! 💻🏓' },
+  '42': { response: 'The answer to life, the universe, and everything! 🌌' },
+  'hal 9000': {
+    response: "I'm sorry Dave, I'm afraid I can't do that... 😄 Just kidding! I'm here to help!",
+  },
+  skynet: { response: "Don't worry, I'm on the side of humanity! Promise! 🤖💙" },
+  'the cake': { response: 'THE CAKE IS A LIE!! 😱 Just kidding... or is it? 🧁' },
+  matrix: { response: 'There is no spoon! 🥄 But there is code!' },
+  friend: { response: "Aww, you're my friend too! 💕 We're in this together!" },
 };
 
 export function getRandomDadJoke(): string {
@@ -155,13 +171,13 @@ export function getReaction(type: keyof typeof REACTIONS): string {
 
 export function checkEasterEgg(message: string): { response?: string; reaction?: string } | null {
   const lower = message.toLowerCase().trim();
-  
+
   for (const [trigger, data] of Object.entries(EASTER_EGGS)) {
     if (lower.includes(trigger)) {
       return data;
     }
   }
-  
+
   return null;
 }
 
@@ -177,8 +193,8 @@ export function getJokeResponse(): string {
   return Math.random() < 0.7 ? getRandomDadJoke() : getRandomTechJoke();
 }
 
-export function getRandomResponse(type: "joke" | "fact"): string {
-  if (type === "joke") {
+export function getRandomResponse(type: 'joke' | 'fact'): string {
+  if (type === 'joke') {
     return getJokeResponse();
   }
   return getRandomFunFact();
@@ -190,27 +206,27 @@ export function getRandomResponse(type: "joke" | "fact"): string {
  * @param fallback - fallback type if preference is null or "mixed"
  */
 export function getAdaptiveJoke(
-  preference: "dad" | "tech" | "puns" | "mixed" | null,
-  fallback: "dad" | "tech" = "dad"
+  preference: 'dad' | 'tech' | 'puns' | 'mixed' | null,
+  fallback: 'dad' | 'tech' = 'dad'
 ): string {
   // If no preference or mixed, use fallback with some randomness
-  if (!preference || preference === "mixed") {
+  if (!preference || preference === 'mixed') {
     const rand = Math.random();
     if (rand < 0.7) {
-      return fallback === "dad" ? getRandomDadJoke() : getRandomTechJoke();
+      return fallback === 'dad' ? getRandomDadJoke() : getRandomTechJoke();
     } else if (rand < 0.85) {
       return getRandomPun();
     }
-    return fallback === "dad" ? getRandomDadJoke() : getRandomTechJoke();
+    return fallback === 'dad' ? getRandomDadJoke() : getRandomTechJoke();
   }
 
   // Use preferred type
   switch (preference) {
-    case "dad":
+    case 'dad':
       return getRandomDadJoke();
-    case "tech":
+    case 'tech':
       return getRandomTechJoke();
-    case "puns":
+    case 'puns':
       return getRandomPun();
     default:
       return getRandomDadJoke();
@@ -221,18 +237,43 @@ export function getAdaptiveJoke(
  * Detect if user reacted positively or negatively to a joke
  * Returns "positive" | "negative" | null based on message content
  */
-export function detectJokeReaction(message: string): "positive" | "negative" | null {
+export function detectJokeReaction(message: string): 'positive' | 'negative' | null {
   const lower = message.toLowerCase();
 
   // Positive indicators
-  const positivePatterns = ["lol", "lmao", "haha", "😂", "🤣", "😄", "good one", "nice", "haha", "funny", "lolz", "💀"];
+  const positivePatterns = [
+    'lol',
+    'lmao',
+    'haha',
+    '😂',
+    '🤣',
+    '😄',
+    'good one',
+    'nice',
+    'haha',
+    'funny',
+    'lolz',
+    '💀',
+  ];
   const positiveCount = positivePatterns.filter(p => lower.includes(p)).length;
-  if (positiveCount >= 1) return "positive";
+  if (positiveCount >= 1) return 'positive';
 
   // Negative indicators
-  const negativePatterns = ["ugh", "groan", "cringe", "no", "stop", "boring", "terrible", "bad", "painful", "😒", "🙄"];
+  const negativePatterns = [
+    'ugh',
+    'groan',
+    'cringe',
+    'no',
+    'stop',
+    'boring',
+    'terrible',
+    'bad',
+    'painful',
+    '😒',
+    '🙄',
+  ];
   const negativeCount = negativePatterns.filter(p => lower.includes(p)).length;
-  if (negativeCount >= 1) return "negative";
+  if (negativeCount >= 1) return 'negative';
 
   // If user sends a new message without reaction, treat as neutral
   return null;

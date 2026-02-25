@@ -1,5 +1,5 @@
-import { homedir } from "node:os";
-import { join } from "node:path";
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 
 export function getMikiclawDir(): string {
   const override = process.env.MIKICLAW_HOME?.trim();
@@ -7,7 +7,7 @@ export function getMikiclawDir(): string {
     return override;
   }
 
-  return join(homedir(), ".mikiclaw");
+  return join(homedir(), '.mikiclaw');
 }
 
 export function getMikiclawKeyPath(): string {
@@ -16,5 +16,5 @@ export function getMikiclawKeyPath(): string {
     return override;
   }
 
-  return join(homedir(), ".mikiclaw_key");
+  return join(homedir(), '.mikiclaw_key');
 }
